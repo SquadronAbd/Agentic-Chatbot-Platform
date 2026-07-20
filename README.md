@@ -88,7 +88,44 @@ This applies only the new migration(s) — already-applied ones are skipped auto
 | `docker exec -it chatbot_db psql -U postgres -d chatbot_db` | Open a direct SQL prompt into the database |
 | `docker exec -it chatbot_db psql -U postgres -d chatbot_db -c "\dt"` | List all tables |
 
-## Project structure
+## Airflow (analytics pipeline)
+
+This project includes one working DAG — `dag_chat_analytics` — which nightly
+extracts messages, computes usage metrics, and loads them into the
+`daily_chat_metrics` table.
+
+After running `docker-compose up -d` (Step 4 above), Airflow comes up
+alongside Postgres/Redis automatically. No separate setup needed.
+
+1. Wait ~2-3 minutes on first run — Airflow pulls its image and installs
+   `pandas`/`sqlalchemy`/`psycopg2-binary`/`pyarrow` inside its containers.
+2. Open the Airflow UI: `http://localhost:8080`
+3. Log in: `admin` / `admin`
+4. Find `dag_chat_analytics` in the DAGs list, toggle it **on** (unpaused)
+5. Click the ▶ (trigger) button to run it manually instead of waiting for
+   its 2 AM schedule
+6. Click into the run — all 5 tasks should turn green:
+   `extract_messages -> compute_metrics -> compute_daily_active_users ->
+   save_parquet -> load_to_postgres`
+
+Verify data landed:
+```
+docker exec -it chatbot_db psql -U postgres -d chatbot_db -c "SELECT * FROM daily_chat_metrics;"
+```
+
+If the table is empty, that's expected until real conversations/messages
+exist in `chatbot_db` — the DAG runs successfully either way.
+
+## Managing the Airflow containers
+
+| Command | What it does |
+|---|---|
+| `docker stop airflow_webserver airflow_scheduler airflow_db` | Pause Airflow, keep main app DB/Redis running |
+| `docker start airflow_db airflow_scheduler airflow_webserver` | Resume Airflow (start in this order) |
+| `docker-compose down` | Stop everything, keep all data |
+| `docker-compose down -v` | Stop everything AND wipe all data (fresh start) |
+
+
 
 ```
 backend/
@@ -102,6 +139,10 @@ backend/
 │   └── core/
 │       ├── security.py  # Password hashing, JWT — done
 │       └── deps.py      # Auth/RBAC dependencies — done
+├── airflow/
+│   ├── dags/
+│   │   └── dag_chat_analytics.py   # Nightly analytics ETL — working
+│   └── logs/            # Generated at runtime, not committed
 ├── alembic/              # Migration history — do not edit existing files
 ├── .env                  # Your local secrets — NOT committed
 ├── .env.example          # Template — committed, no real secrets

@@ -5,3 +5,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
+
+# Airflow runtime files — logs are regenerated on every run, not meant to be shared
+airflow/logs/*
+!airflow/logs/.gitkeep
+airflow/*.log
+airflow/airflow.cfg
+airflow/webserver_config.py

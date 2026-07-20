@@ -1,16 +1,16 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 
 app = FastAPI(title="Agentic Chatbot Platform - Backend")
 
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok"}
 
 @app.get("/health/db")
-def health_db(db: Session = Depends(get_db)):
-    db.execute(text("SELECT 1"))
+async def health_db(db: AsyncSession = Depends(get_db)):
+    await db.execute(text("SELECT 1"))
     return {"status": "ok", "database": "connected"}
