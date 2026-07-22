@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app.database import Base
+from app.core.database import Base
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

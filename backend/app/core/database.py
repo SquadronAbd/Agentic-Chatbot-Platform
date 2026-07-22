@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
-from app.config import settings
+from app.core.config import settings
 
 # Async engine needs the "+asyncpg" dialect in the URL, e.g.:
 # postgresql+asyncpg://postgres:apppass@localhost:5432/chatbot_db

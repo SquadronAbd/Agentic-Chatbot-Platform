@@ -1,14 +1,39 @@
-.env
-venv/
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-*.egg-info/
+# ===========================
+# OS Files
+# ===========================
+.DS_Store
+Thumbs.db
 
-# Airflow runtime files — logs are regenerated on every run, not meant to be shared
-airflow/logs/*
-!airflow/logs/.gitkeep
-airflow/*.log
-airflow/airflow.cfg
-airflow/webserver_config.py
+# ===========================
+# VS Code / IDE
+# ===========================
+.vscode/
+.idea/
+
+# ===========================
+# Git Logs
+# ===========================
+*.log
+
+# ===========================
+# Frontend
+# ===========================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+
+# Environment files
+frontend/.env
+frontend/.env.local
+
+# ===========================
+# AI
+# ===========================
+ai/.venv/
+ai/venv/
+ai/__pycache__/
+ai/.env
+ai/models/
+ai/checkpoints/
+ai/cache/

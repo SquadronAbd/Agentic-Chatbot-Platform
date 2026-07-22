@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 
-from app.database import Base
+from app.core.database import Base
 import app.models # Registers all models with Base.metadata
 
 # this is the Alembic Config object, which provides

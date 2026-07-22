@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Table
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app.database import Base
+from app.core.database import Base
 
 message_chunks = Table(
     "message_chunks", 

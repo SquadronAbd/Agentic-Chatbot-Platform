@@ -4,7 +4,7 @@ from datetime import date as date_type
 from sqlalchemy import Column, Date, Integer, Float, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 
-from app.database import Base
+from app.core.database import Base
 
 class DailyChatMetric(Base):
     __tablename__ = "daily_chat_metrics"

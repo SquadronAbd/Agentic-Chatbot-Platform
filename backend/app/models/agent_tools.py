@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Boolean, JSON
 from sqlalchemy.dialects.postgresql import UUID
 
-from app.database import Base
+from app.core.database import Base
 
 class AgentTool(Base):
     __tablename__ = "agent_tools"

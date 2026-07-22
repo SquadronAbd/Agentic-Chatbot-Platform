@@ -1,0 +1,54 @@
+# ==========================
+# Environment
+# ==========================
+.env
+.env.*
+!.env.example
+
+# ==========================
+# Virtual Environment
+# ==========================
+venv/
+.venv/
+
+# ==========================
+# Python
+# ==========================
+__pycache__/
+*.py[cod]
+*.pyc
+
+# ==========================
+# Testing
+# ==========================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================
+# Build
+# ==========================
+build/
+dist/
+*.egg-info/
+
+# ==========================
+# Airflow
+# ==========================
+airflow/logs/*
+!airflow/logs/.gitkeep
+
+airflow/*.log
+airflow/airflow.cfg
+airflow/webserver_config.py
+
+# ==========================
+# Runtime Data
+# ==========================
+data/uploads/
+data/temp/
+data/processed/
+
+# Database
+*.db
+*.sqlite3
