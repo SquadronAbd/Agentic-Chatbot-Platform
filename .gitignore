@@ -37,3 +37,4 @@ ai/.env
 ai/models/
 ai/checkpoints/
 ai/cache/
+.venv
