@@ -1,0 +1,184 @@
+/* stylelint-disable-next-line at-rule-no-unknown */
+@tailwind base;
+/* stylelint-disable-next-line at-rule-no-unknown */
+@tailwind components;
+/* stylelint-disable-next-line at-rule-no-unknown */
+@tailwind utilities;
+
+:root {
+  --font-display: var(--space-grotesk);
+  --font-body: var(--plus-jakarta);
+  --font-mono: var(--plex-mono);
+
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-highlight: rgba(255, 255, 255, 0.9);
+  --text-primary: #161a33;
+  --text-secondary: rgba(22, 26, 51, 0.62);
+  --page-bg-a: #eef2ff;
+  --page-bg-b: #f4f7ff;
+}
+
+[data-theme="dark"] {
+  --font-body: var(--sora);
+
+  --glass-bg: rgba(18, 18, 34, 0.45);
+  --glass-bg-strong: rgba(18, 18, 34, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.14);
+  --text-primary: #f1f0fa;
+  --text-secondary: rgba(241, 240, 250, 0.6);
+  --page-bg-a: #0a0b16;
+  --page-bg-b: #12142b;
+}
+
+* {
+  border-color: var(--glass-border);
+}
+
+html,
+body {
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(160deg, var(--page-bg-a), var(--page-bg-b));
+  transition: background 0.5s ease, color 0.4s ease;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Aurora: the signature ambient background every glass panel refracts.  */
+/* Day mode = soft warm/cool drift. Night mode = pulsing violet/cyan glow */
+/* ---------------------------------------------------------------------- */
+.aurora-field {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(80px);
+  opacity: 0.55;
+}
+
+[data-theme="dark"] .aurora-blob {
+  filter: blur(100px);
+  opacity: 0.5;
+}
+
+.aurora-blob-1 {
+  width: 42vw;
+  height: 42vw;
+  top: -10%;
+  left: -8%;
+  background: radial-gradient(circle, #a5b4fc 0%, transparent 70%);
+  animation: drift 22s ease-in-out infinite;
+}
+[data-theme="dark"] .aurora-blob-1 {
+  background: radial-gradient(circle, #8c7cff 0%, transparent 70%);
+}
+
+.aurora-blob-2 {
+  width: 38vw;
+  height: 38vw;
+  top: 20%;
+  right: -10%;
+  background: radial-gradient(circle, #67e8f9 0%, transparent 70%);
+  animation: drift-slow 34s ease-in-out infinite reverse;
+}
+[data-theme="dark"] .aurora-blob-2 {
+  background: radial-gradient(circle, #38e1ff 0%, transparent 70%);
+}
+
+.aurora-blob-3 {
+  width: 34vw;
+  height: 34vw;
+  bottom: -12%;
+  left: 22%;
+  background: radial-gradient(circle, #ddd6fe 0%, transparent 70%);
+  animation: drift 28s ease-in-out infinite;
+}
+[data-theme="dark"] .aurora-blob-3 {
+  background: radial-gradient(circle, #6c5ce7 0%, transparent 70%);
+  animation: pulse-glow 6s ease-in-out infinite, drift 28s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Glass primitives                                                       */
+/* ---------------------------------------------------------------------- */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px 0 rgba(20, 20, 50, 0.12);
+}
+
+[data-theme="dark"] .glass {
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.glass-highlight {
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-highlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    var(--glass-highlight) 0%,
+    transparent 30%,
+    transparent 70%,
+    var(--glass-highlight) 100%
+  );
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+/* Scrollbar tuned for glass surfaces */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob {
+    animation: none !important;
+  }
+}
+
+/* Visible keyboard focus on glass surfaces */
+:focus-visible {
+  outline: 2px solid var(--accent-focus, #6c5ce7);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
