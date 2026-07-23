@@ -31,6 +31,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
     return user
 
 def require_role(*allowed_roles: str):
+    """Route guard: only lets through users whose role is in allowed_roles."""
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in allowed_roles:
             raise HTTPException(
@@ -39,3 +40,7 @@ def require_role(*allowed_roles: str):
             )
         return current_user
     return role_checker
+
+def is_privileged(user: User) -> bool:
+    """Admin/Manager can see across all users' data; Agent/Viewer are scoped to their own."""
+    return user.role in ("admin", "manager")

@@ -13,3 +13,4 @@ redis==5.0.8
 python-dotenv>=1.0.1
 # Validation
 email-validator
+bcrypt==4.0.1
