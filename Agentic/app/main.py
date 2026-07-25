@@ -1,5 +1,6 @@
 import os
 import shutil
+from contextlib import asynccontextmanager
 from typing import List, Optional, Any, Dict
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,13 +10,22 @@ from app.utils.logger import logger
 from app.config.settings import settings
 from app.rag.rag_service import RAGService
 from app.rag.pipeline import pipeline
+from app.rag.bm25_corpus import bm25_corpus
 from app.memory.session import SessionManager
 from app.tools.retriever_tool import RetrieverTool
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    bm25_corpus.bootstrap(settings.DATABASE_URL, settings.COLLECTION_NAME)
+    yield
+
 
 app = FastAPI(
     title="Enterprise AI Assistant API",
     description="FastAPI Backend for Enterprise Multi-Agent RAG Assistant",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Enable CORS for Frontend

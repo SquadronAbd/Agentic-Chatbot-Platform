@@ -5,6 +5,7 @@ from app.rag.loader import DocumentLoader
 from app.rag.cleaner import DocumentCleaner
 from app.rag.chunker import DocumentChunker
 from app.models.vector_store import vector_store
+from app.rag.bm25_corpus import bm25_corpus
 
 
 class Pipeline:
@@ -32,6 +33,7 @@ class Pipeline:
         logger.info(f"Adding {len(chunks)} chunks")
 
         vector_store.add_documents(chunks)
+        bm25_corpus.add(chunks)
 
         return len(chunks)
 
