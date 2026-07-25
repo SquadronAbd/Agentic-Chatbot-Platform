@@ -1,23 +1,24 @@
 from typing import Any, Dict, Optional
 
-from app.agents.router_agent import RouterAgent
 from app.agents.document_agent import DocumentAgent
-from app.agents.memory_agent import MemoryAgent
 from app.agents.general_agent import GeneralAgent
+from app.agents.memory_agent import MemoryAgent
 from app.agents.planner_agent import PlannerAgent
 from app.agents.reflection_agent import ReflectionAgent
+from app.agents.router_agent import RouterAgent
 from app.tools.tool_manager import ToolManager
 
 
 class AgentManager:
     """
-    Unified entry point coordinating all system AI agents.
+    Single entry point for all agent execution.
+
+    The graph's classify_intent node classifies the query and passes the
+    intent via the `intent` parameter — no second LLM call for routing.
+    When called standalone (outside the graph), classification is done here.
     """
 
-    def __init__(
-        self,
-        tool_manager: Optional[ToolManager] = None,
-    ):
+    def __init__(self, tool_manager: Optional[ToolManager] = None):
         self.tool_manager = tool_manager or ToolManager()
         self.router = RouterAgent()
         self.document = DocumentAgent(self.tool_manager)
@@ -30,32 +31,48 @@ class AgentManager:
         self,
         question: str,
         memory: Optional[Any] = None,
+        intent: Optional[str] = None,
         use_reflection: bool = True,
     ) -> Dict[str, Any]:
         """
-        Routes the question to the appropriate agent pipeline and optionally runs reflection.
+        Executes the full agent pipeline for a given question.
+
+        Args:
+            question:       User's question.
+            memory:         ConversationMemory for the current session.
+            intent:         Pre-classified intent from the graph's classify_intent
+                            node ('planner', 'document', 'memory', 'general').
+                            When None, classification is done here via RouterAgent.
+            use_reflection: Whether to run the ReflectionAgent on the draft answer.
+                            Set to False when the graph's reflection node handles it.
         """
-        route = self.router.route(question)
-        documents = []
-        sources = []
+        # Classify only if the graph hasn't already done it
+        if intent is None:
+            intent = self.router.route(question)
 
-        # Complex query check for Planner
-        if any(kw in question.lower() for kw in ["compare", "difference between", "step by step", "break down"]):
-            plan_res = self.planner.plan_and_execute(question, memory)
-            draft_answer = plan_res["answer"]
-            documents = plan_res.get("documents", [])
-            sources = plan_res.get("sources", [])
-        elif route == "document":
-            doc_res = self.document.answer(question=question, memory=memory)
-            draft_answer = doc_res["answer"]
-            documents = doc_res.get("documents", [])
-            sources = doc_res.get("sources", [])
-        elif route == "memory":
-            draft_answer = self.memory.answer(question, memory)
+        documents: list = []
+        sources: list = []
+        plan: str = ""
+
+        if intent == "planner":
+            result = self.planner.plan_and_execute(question, memory)
+            draft_answer = result["answer"]
+            documents = result.get("documents", [])
+            sources = result.get("sources", [])
+            plan = result.get("plan", "")
+
+        elif intent == "document":
+            result = self.document.answer(question=question, memory=memory)
+            draft_answer = result["answer"]
+            documents = result.get("documents", [])
+            sources = result.get("sources", [])
+
+        elif intent == "memory":
+            draft_answer = self.memory.answer(question=question, memory=memory)
+
         else:
-            draft_answer = self.general.answer(question)
+            draft_answer = self.general.answer(question=question)
 
-        # Reflection step
         if use_reflection and draft_answer:
             final_answer = self.reflection.reflect(
                 question=question,
@@ -67,7 +84,8 @@ class AgentManager:
 
         return {
             "answer": final_answer,
-            "sources": sources,
             "documents": documents,
-            "route": route,
+            "sources": sources,
+            "intent": intent,
+            "plan": plan,
         }

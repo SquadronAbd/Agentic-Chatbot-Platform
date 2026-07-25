@@ -2,7 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    GOOGLE_API_KEY: str
+    GOOGLE_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
 
     LLM_MODEL: str
 

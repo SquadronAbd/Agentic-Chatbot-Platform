@@ -5,25 +5,28 @@ import { User } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { StreamingMessage } from "@/components/chat/streaming-message";
 import { MessageInput } from "@/components/chat/message-input";
+import { sendChat } from "@/lib/api";
 import type { Message } from "@/lib/types";
 
-/** Renders messages with lightweight markdown support (bold + inline code) and streams the latest assistant reply. */
 function formatInline(text: string) {
   return text
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/`(.+?)`/g, '<code class="rounded bg-white/20 px-1 py-0.5 font-mono text-[13px]">$1</code>');
 }
 
+const SESSION_ID = `session_${Math.random().toString(36).slice(2, 10)}`;
+
 export function ChatWindow({ initialMessages }: { initialMessages: Message[] }) {
   const [messages, setMessages] = React.useState(initialMessages);
-  const [streamingReply, setStreamingReply] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, streamingReply]);
+  }, [messages, loading]);
 
-  function handleSend(text: string) {
+  async function handleSend(text: string) {
     const userMessage: Message = {
       id: `m_${Date.now()}`,
       role: "user",
@@ -31,18 +34,31 @@ export function ChatWindow({ initialMessages }: { initialMessages: Message[] }) 
       createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
     setMessages((prev) => [...prev, userMessage]);
+    setLoading(true);
+    setError(null);
 
-    // Placeholder reply — in production this is replaced by useChat()
-    // from the Vercel AI SDK consuming POST /chat/stream (SSE).
-    window.setTimeout(() => {
-      setStreamingReply(
-        "Here's a draft answer based on the retrieved context. Once `/chat/stream` is live, this will be real model output streamed token by token via Server-Sent Events."
-      );
-    }, 400);
+    try {
+      const res = await sendChat(SESSION_ID, text);
+      if (!res.success || res.error) throw new Error(res.error ?? "Unknown error");
+
+      const assistantMessage: Message = {
+        id: `m_${Date.now()}_a`,
+        role: "assistant",
+        content: res.answer,
+        tokens: res.documents_retrieved,
+        createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to reach backend";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pr-1">
         {messages.map((message) =>
           message.role === "user" ? (
@@ -63,12 +79,16 @@ export function ChatWindow({ initialMessages }: { initialMessages: Message[] }) 
           )
         )}
 
-        {streamingReply && (
-          <StreamingMessage fullText={streamingReply} tokens={143} />
+        {loading && <StreamingMessage fullText="Thinking..." tokens={0} />}
+
+        {error && (
+          <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
         )}
       </div>
 
-      <MessageInput onSend={handleSend} />
+      <MessageInput onSend={handleSend} disabled={loading} />
     </div>
   );
 }
@@ -84,7 +104,9 @@ function StreamingContentBubble({ content, tokens }: { content: string; tokens?:
           className="text-sm leading-relaxed font-body"
           dangerouslySetInnerHTML={{ __html: formatInline(content) }}
         />
-        {tokens && <p className="mt-2 font-mono text-[11px] text-secondary">{tokens} tokens</p>}
+        {tokens !== undefined && tokens > 0 && (
+          <p className="mt-2 font-mono text-[11px] text-secondary">{tokens} docs retrieved</p>
+        )}
       </GlassCard>
     </div>
   );
