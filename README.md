@@ -186,43 +186,6 @@ The dataset includes:
 
 # 📂 Project Structure
 
-```text
-Agentic_Chatbot_Platform/
-│
-├── backend/
-│   ├── authentication/
-│   ├── database/
-│   ├── api/
-│   ├── models/
-│   ├── services/
-│   └── main.py
-│
-├── ai/
-│   ├── agents/
-│   │   ├── agent_manager.py
-│   │   ├── router_agent.py
-│   │   ├── planner_agent.py
-│   │   ├── document_agent.py
-│   │   ├── memory_agent.py
-│   │   ├── reflection_agent.py
-│   │   ├── tool_agent.py
-│   │   └── general_agent.py
-│   │
-│   ├── embeddings/
-│   ├── prompts/
-│   ├── vector_store/
-│   ├── workflows/
-│   └── main.py
-│
-├── frontend/
-│   ├── app/
-│   ├── components/
-│   ├── pages/
-│   └── public/
-│
-├── docker-compose.yml
-└── README.md
-```
 
 ---
 
