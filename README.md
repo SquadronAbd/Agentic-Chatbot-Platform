@@ -161,6 +161,14 @@ The dataset includes:
 - HuggingFace Transformers
 - Sentence Transformers
 
+### Models
+
+| Role | Model |
+|------|-------|
+| **LLM** | `llama-3.3-70b-versatile` via [Groq](https://groq.com) |
+| **Embedding** | `BAAI/bge-small-en-v1.5` (local, CPU) via HuggingFace |
+| **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` (local, CPU) via HuggingFace |
+
 ## Backend
 
 - FastAPI
