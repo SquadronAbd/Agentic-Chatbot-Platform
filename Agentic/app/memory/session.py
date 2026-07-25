@@ -76,3 +76,7 @@ class SessionManager:
         """
 
         return len(self.sessions)
+
+
+# Module-level singleton — import this everywhere instead of instantiating SessionManager()
+session_manager = SessionManager()

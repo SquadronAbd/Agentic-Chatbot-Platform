@@ -1,18 +1,13 @@
-from app.rag.retriever import DocumentRetriever
+from app.rag.retriever import retriever
 
 
 class RetrieverTool:
     """
-    Tool for semantic document retrieval.
+    Tool for hybrid document retrieval (dense + BM25 + re-ranking).
     """
 
-    def __init__(self, k: int = 3):
-        self.retriever = DocumentRetriever(k=k)
-
-    def search(self, query: str):
-
-        documents = self.retriever.retrieve(query)
-
+    def search(self, query: str) -> dict:
+        documents = retriever.retrieve(query)
         return {
             "success": True,
             "count": len(documents),

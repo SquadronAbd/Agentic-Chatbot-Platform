@@ -11,7 +11,7 @@ from app.config.settings import settings
 from app.rag.rag_service import RAGService
 from app.rag.pipeline import pipeline
 from app.rag.bm25_corpus import bm25_corpus
-from app.memory.session import SessionManager
+from app.memory.session import session_manager
 from app.tools.retriever_tool import RetrieverTool
 
 
@@ -38,7 +38,6 @@ app.add_middleware(
 )
 
 rag_service = RAGService()
-session_manager = SessionManager()
 retriever_tool = RetrieverTool()
 
 # ----------------------------------------------------
@@ -83,7 +82,7 @@ def health_check():
         "status": "healthy",
         "service": "Enterprise AI Assistant",
         "collection_name": settings.COLLECTION_NAME,
-        "embedding_model": settings.EMBEDDING_MODEL_NAME,
+        "embedding_model": settings.EMBEDDING_MODEL,
     }
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"])
@@ -210,7 +209,7 @@ def get_documents_info():
     return {
         "success": True,
         "collection_name": settings.COLLECTION_NAME,
-        "embedding_model": settings.EMBEDDING_MODEL_NAME,
+        "embedding_model": settings.EMBEDDING_MODEL,
         "database": "PostgreSQL (pgvector)",
         "active_sessions": session_manager.total_sessions(),
     }

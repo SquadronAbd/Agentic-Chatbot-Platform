@@ -7,8 +7,8 @@ export function AppShell({ user, children }: { user: CurrentUser; children: Reac
     <div className="relative min-h-screen">
       <AuroraField />
       <Sidebar role={user.role} />
-      <main className="min-h-screen pl-[100px] pr-4 pt-4 md:pl-[248px] md:pr-6">
-        <div className="mx-auto max-w-6xl pb-10">{children}</div>
+      <main className="flex h-screen flex-col pl-[100px] pr-4 pt-4 md:pl-[248px] md:pr-6">
+        <div className="mx-auto flex h-full w-full max-w-6xl flex-col pb-4">{children}</div>
       </main>
     </div>
   );

@@ -26,14 +26,13 @@ class PromptBuilder:
 
         sections = []
 
-        for index, document in enumerate(documents, start=1):
-
+        for document in documents:
             source = document.metadata.get("source", "Unknown")
+            header = document.metadata.get("h1") or document.metadata.get("h2") or ""
+            label = f"{source}" + (f" — {header}" if header else "")
 
             sections.append(
-                f"""Document {index}
-Source: {source}
-
+                f"""[{label}]
 {document.page_content}
 """
             )
@@ -75,27 +74,22 @@ Source: {source}
             summary = "No previous summary."
 
         prompt = f"""
-You are an enterprise AI assistant.
+You are an enterprise AI assistant specialising in financial report analysis.
 
-Your job is to answer questions using ONLY the retrieved document context.
+Your job is to answer questions using ONLY the retrieved document context provided below.
 
 Rules:
 
-1. Use the retrieved context as the primary source of truth.
-2. You may use the conversation summary and recent conversation
-   to understand references like:
-      - "it"
-      - "that"
-      - "the previous answer"
-3. Never invent facts.
-4. If the answer cannot be found in the retrieved context,
-   respond exactly with:
+1. Answer directly and confidently — do not say "Document 1 says" or "According to Document 2". Just state the facts.
+2. You may reference the source file name naturally if it helps (e.g. "In the 2022 Annual Report..."), but never use numeric document labels like "Document 1".
+3. Use the conversation summary and recent conversation to understand references like "it", "that", or "the previous answer".
+4. Never invent facts or figures not present in the context.
+5. If the answer cannot be found in the retrieved context, respond exactly with:
 
 I couldn't find the answer in the provided documents.
 
-5. If the user asks for a simpler explanation,
-   rewrite the retrieved information in easier language.
-6. Keep responses concise unless the user requests details.
+6. Keep responses concise and direct unless the user requests details.
+7. When citing numbers, percentages, or financial figures, include them exactly as they appear in the source.
 
 ==================================================
 Conversation Summary

@@ -1,41 +1,30 @@
 from typing import Any, Dict
+
 from app.graph.workflow import graph
-from app.memory.session import SessionManager
+from app.memory.session import session_manager
 from app.memory.summarizer import ConversationSummarizer
 
 
 class RAGService:
-    """
-    Thin backwards-compatibility wrapper delegating to LangGraph and AgentManager.
-    """
 
     def __init__(
         self,
-        k: int = 3,
         summary_threshold: int = 20,
         recent_messages: int = 6,
     ):
-        self.session_manager = SessionManager()
+        self.session_manager = session_manager  # shared singleton
         self.summarizer = ConversationSummarizer()
         self.summary_threshold = summary_threshold
         self.recent_messages = recent_messages
 
-    def _summarize_if_needed(self, memory):
+    def _summarize_if_needed(self, memory) -> None:
         if memory.message_count() < self.summary_threshold:
             return
-
         summary = self.summarizer.summarize(memory.get_history())
         recent = memory.last_messages(self.recent_messages)
-        memory.replace_history(
-            summary=summary,
-            recent_messages=recent,
-        )
+        memory.replace_history(summary=summary, recent_messages=recent)
 
-    def ask(
-        self,
-        session_id: str,
-        question: str,
-    ) -> Dict[str, Any]:
+    def ask(self, session_id: str, question: str) -> Dict[str, Any]:
         try:
             memory = self.session_manager.get_memory(session_id)
             self._summarize_if_needed(memory)
@@ -61,7 +50,6 @@ class RAGService:
             documents = result.get("retrieved_documents", result.get("documents", []))
             sources = result.get("sources", [])
 
-            # Format sources if needed
             formatted_sources = []
             for item in sources:
                 if isinstance(item, dict):

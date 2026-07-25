@@ -32,7 +32,7 @@ export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
 
   return (
-    <aside className="glass glass-highlight fixed left-4 top-4 bottom-4 z-20 flex w-[76px] flex-col items-center rounded-glass py-6 shadow-glass md:w-[220px] md:items-stretch md:px-4">
+    <aside className="glass glass-highlight !fixed left-4 top-4 bottom-4 z-20 flex w-[76px] flex-col items-center rounded-glass py-6 shadow-glass md:w-[220px] md:items-stretch md:px-4">
       <div className="mb-8 flex items-center gap-2 px-2">
         <div className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-iris to-aqua shadow-glow-iris">
           <Sparkles className="h-4.5 w-4.5 text-white" />

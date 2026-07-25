@@ -30,23 +30,25 @@ class ReflectionAgent:
         doc_context = ""
         if documents:
             doc_context = "\n\n".join(
-                [f"Document {i+1}:\n{doc.page_content}" for i, doc in enumerate(documents)]
+                [f"[{doc.metadata.get('source', 'source')}]\n{doc.page_content}" for doc in documents]
             )
 
         prompt = f"""
-You are an expert Reflection Agent. Your job is to review and improve an AI generated answer.
+You are an expert Reflection Agent. Your job is to review and improve an AI-generated answer about financial reports.
 
 CRITICAL INSTRUCTIONS:
-1. Verify correctness and logical coherence.
-2. Improve clarity and readability.
+1. Verify correctness and logical coherence against the retrieved context.
+2. Improve clarity and readability — make the answer direct and confident.
 3. Remove any unsupported claims or hallucinations.
-4. Keep all original source citations intact.
-5. If the draft answer is already excellent, return it with minimal polishing.
+4. NEVER use "Document 1", "Document 2", or any numeric document labels in the output.
+5. NEVER add meta-commentary like "Note: The original source citations are intact" or "The answer has been polished".
+6. Just return the improved answer text directly — no preamble, no footnotes.
+7. If the draft answer is already concise and accurate, return it with minimal changes.
 
 Original Question:
 {question}
 
-Retrieved Context (if any):
+Retrieved Context:
 {doc_context if doc_context else "None"}
 
 Draft Answer:
