@@ -363,11 +363,9 @@ Responsible for:
 
 - Citation-aware Responses
 - Streaming Responses
-- Hybrid Search (BM25 + Vector Search)
 - Multi-document Reasoning
 - OCR Support for Scanned PDFs
 - Financial Chart Generation
-- Agent Memory Persistence
 - Multi-modal RAG
 - Cloud Deployment (AWS / Azure / GCP)
 - Human-in-the-Loop Review
