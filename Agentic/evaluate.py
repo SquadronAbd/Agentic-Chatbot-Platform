@@ -1,5 +1,6 @@
 """
 Batch evaluation script using real questions from questions.json.
+Calls the running Agentic FastAPI server at localhost:8000.
 
 Usage:
     python evaluate.py --questions path/to/questions.json --sample 10
@@ -7,50 +8,82 @@ Usage:
 """
 import argparse
 import json
+import os
 import random
-import uuid
 import sys
+import uuid
 from pathlib import Path
 
-# Bootstrap settings (loads .env, sets GROQ judge env vars)
-from app.evaluation.evaluator import RAGEvaluator
-from app.graph.workflow import build_graph
-from app.memory.session import session_manager
-from app.utils.logger import logger
+import requests
+from dotenv import load_dotenv
+
+load_dotenv(".env")
+
+groq_key = os.getenv("GROQ_API_KEY", "")
+
+from deepeval.models import DeepEvalBaseLLM
+from deepeval.metrics import (
+    AnswerRelevancyMetric,
+    FaithfulnessMetric,
+)
+from deepeval.test_case import LLMTestCase
+from langchain_groq import ChatGroq
 
 
-def run_rag(question: str) -> tuple[str, list[str]]:
-    """Send question through the LangGraph pipeline, return (answer, context_chunks)."""
-    session_id = str(uuid.uuid4())
-    graph = build_graph()
-    state = graph.invoke(
-        {
-            "session_id": session_id,
-            "question": question,
-            "messages": [],
-            "documents": [],
-            "answer": "",
-            "summary": "",
-            "intent": "",
-            "plan": [],
-            "tool_results": [],
-            "reflection_needed": False,
-            "error": None,
-        }
+class GroqJudge(DeepEvalBaseLLM):
+    """Wraps Groq's ChatGroq as a deepeval-compatible LLM judge."""
+
+    def __init__(self):
+        self.model = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            groq_api_key=groq_key,
+            temperature=0,
+        )
+
+    def load_model(self):
+        return self.model
+
+    def generate(self, prompt: str) -> str:
+        response = self.model.invoke(prompt)
+        return response.content
+
+    async def a_generate(self, prompt: str) -> str:
+        response = await self.model.ainvoke(prompt)
+        return response.content
+
+    def get_model_name(self) -> str:
+        return "llama-3.3-70b-versatile"
+
+
+def build_metrics(threshold: float, judge: GroqJudge):
+    return [
+        AnswerRelevancyMetric(threshold=threshold, model=judge),
+        FaithfulnessMetric(threshold=threshold, model=judge),
+    ]
+
+
+def ask_rag(question: str, host: str, session_id: str) -> tuple[str, list[str]]:
+    resp = requests.post(
+        f"{host}/chat",
+        json={"session_id": session_id, "question": question},
+        timeout=120,
     )
-    answer = state.get("answer", "")
-    docs = state.get("documents", [])
-    context = [d.page_content for d in docs if hasattr(d, "page_content")]
+    resp.raise_for_status()
+    data = resp.json()
+    answer = data.get("answer", "")
+    sources = data.get("sources", [])
+    context = [s.get("content", "") for s in sources if s.get("content")]
     return answer, context
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--questions", required=True, help="Path to questions.json")
-    parser.add_argument("--sample", type=int, default=10, help="Number of random questions to evaluate")
-    parser.add_argument("--all", action="store_true", help="Evaluate all questions")
+    parser.add_argument("--questions", required=True)
+    parser.add_argument("--sample", type=int, default=10)
+    parser.add_argument("--all", action="store_true")
     parser.add_argument("--threshold", type=float, default=0.7)
-    parser.add_argument("--output", default="eval_results.json", help="Where to save results")
+    parser.add_argument("--host", default="http://localhost:8000")
+    parser.add_argument("--output", default="eval_results.json")
     args = parser.parse_args()
 
     questions_path = Path(args.questions)
@@ -62,12 +95,15 @@ def main():
         questions = json.load(f)
 
     selected = questions if args.all else random.sample(questions, min(args.sample, len(questions)))
-    print(f"\nEvaluating {len(selected)} questions  (threshold={args.threshold})\n{'='*60}")
+    print(f"\nEvaluating {len(selected)} questions  (host={args.host}  threshold={args.threshold})")
+    print("=" * 60)
 
-    evaluator = RAGEvaluator(threshold=args.threshold)
+    judge = GroqJudge()
+    metrics = build_metrics(args.threshold, judge)
     results = []
-    passed_counts = {}
-    total_scores = {}
+    total_scores: dict[str, list[float]] = {}
+    passed_counts: dict[str, dict] = {}
+    session_id = str(uuid.uuid4())
 
     for i, q in enumerate(selected, 1):
         text = q["text"]
@@ -75,45 +111,52 @@ def main():
         print(f"\n[{i}/{len(selected)}] {text[:90]}...")
 
         try:
-            answer, context = run_rag(text)
+            answer, context = ask_rag(text, args.host, session_id)
             if not answer:
-                print("  ⚠ Empty answer from RAG — skipping")
+                print("  ⚠ Empty answer — skipping")
                 continue
 
-            scores = evaluator.score(
-                query=text,
+            test_case = LLMTestCase(
+                input=text,
                 actual_output=answer,
                 retrieval_context=context if context else ["No context retrieved."],
             )
 
-            result = {"question": text, "kind": kind, "answer": answer, "scores": scores}
-            results.append(result)
+            print(f"  → Answer: {answer[:200]}{'...' if len(answer) > 200 else ''}")
+            scores: dict[str, dict] = {}
+            for metric in metrics:
+                name = type(metric).__name__
+                try:
+                    metric.measure(test_case)
+                    scores[name] = {
+                        "score": metric.score,
+                        "passed": metric.is_successful(),
+                        "reason": getattr(metric, "reason", ""),
+                    }
+                    symbol = "✓" if metric.is_successful() else "✗"
+                    print(f"  {symbol} {name:<30} score={metric.score:.3f}")
+                    total_scores.setdefault(name, []).append(metric.score)
+                    passed_counts.setdefault(name, {"pass": 0, "fail": 0})
+                    passed_counts[name]["pass" if metric.is_successful() else "fail"] += 1
+                except Exception as exc:
+                    print(f"  ? {name:<30} error: {exc}")
+                    scores[name] = {"score": None, "passed": None, "reason": str(exc)}
 
-            for metric, data in scores.items():
-                score = data.get("score")
-                passed = data.get("passed")
-                symbol = "✓" if passed else "✗" if passed is False else "?"
-                print(f"  {symbol} {metric:<30} score={score}")
-                if score is not None:
-                    total_scores.setdefault(metric, []).append(score)
-                if passed is not None:
-                    passed_counts.setdefault(metric, {"pass": 0, "fail": 0})
-                    passed_counts[metric]["pass" if passed else "fail"] += 1
+            results.append({"question": text, "kind": kind, "answer": answer, "scores": scores})
 
         except Exception as exc:
-            logger.warning(f"Question {i} failed: {exc}")
+            print(f"  ✗ RAG call failed: {exc}")
             results.append({"question": text, "kind": kind, "error": str(exc)})
 
-    # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SUMMARY")
-    print(f"{'='*60}")
-    for metric, scores in total_scores.items():
+    print(f"{'=' * 60}")
+    for metric_name, scores in total_scores.items():
         avg = sum(scores) / len(scores)
-        p = passed_counts.get(metric, {})
+        p = passed_counts.get(metric_name, {})
         total = p.get("pass", 0) + p.get("fail", 0)
         pass_rate = p.get("pass", 0) / total * 100 if total else 0
-        print(f"  {metric:<30} avg={avg:.3f}  pass_rate={pass_rate:.0f}%  ({p.get('pass',0)}/{total})")
+        print(f"  {metric_name:<30} avg={avg:.3f}  pass_rate={pass_rate:.0f}%  ({p.get('pass',0)}/{total})")
 
     out_path = Path(args.output)
     with open(out_path, "w", encoding="utf-8") as f:
