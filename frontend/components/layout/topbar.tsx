@@ -1,7 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Bell, LogOut, Menu, Settings as SettingsIcon, User as UserIcon } from "lucide-react";
+import {
+  Bell,
+  LogOut,
+  Menu,
+  Settings as SettingsIcon,
+  User as UserIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -29,13 +35,20 @@ export function Topbar({
   const router = useRouter();
   const logout = useAuthStore((s) => s.logout);
   const setMobile = useUIStore((s) => s.setMobileMenuOpen);
+
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      ) {
+        setMenuOpen(false);
+      }
     }
+
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
@@ -50,22 +63,23 @@ export function Topbar({
     user.role === "admin"
       ? "iris"
       : user.role === "manager"
-      ? "aqua"
-      : user.role === "agent"
-      ? "default"
-      : "outline";
+        ? "aqua"
+        : user.role === "agent"
+          ? "default"
+          : "outline";
 
   return (
     <header className="glass glass-highlight sticky top-4 z-10 mb-6 flex items-center justify-between gap-3 rounded-glass px-4 py-3 shadow-glass md:px-6 md:py-4">
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="md:hidden rounded-xl glass p-2"
+          className="rounded-xl glass p-2 md:hidden"
           onClick={() => setMobile(true)}
           aria-label="Open menu"
         >
           <Menu className="h-4 w-4" />
         </button>
+
         <div className="min-w-0">
           {breadcrumb && breadcrumb.length > 0 && (
             <div className="mb-1 flex items-center gap-1 text-[11px] font-mono text-secondary">
@@ -77,15 +91,28 @@ export function Topbar({
               ))}
             </div>
           )}
-          <h1 className="truncate font-display text-lg font-semibold tracking-tight">{title}</h1>
-          {subtitle && <p className="truncate text-sm text-secondary">{subtitle}</p>}
+
+          <h1 className="truncate font-display text-lg font-semibold tracking-tight">
+            {title}
+          </h1>
+
+          {subtitle && (
+            <p className="truncate text-sm text-secondary">
+              {subtitle}
+            </p>
+          )}
         </div>
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
         {actions}
+
         <ThemeToggle />
-        <button className="relative rounded-xl glass p-2 text-secondary hover:text-[var(--text-primary)]" aria-label="Notifications">
+
+        <button
+          className="relative rounded-xl glass p-2 text-secondary hover:text-[var(--text-primary)]"
+          aria-label="Notifications"
+        >
           <Bell className="h-4 w-4" />
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-[var(--page-bg-a)]" />
         </button>
@@ -97,13 +124,19 @@ export function Topbar({
             className="hidden items-center gap-2.5 sm:flex"
           >
             <Avatar name={user.name} size="sm" />
+
             <div className="hidden text-left leading-tight lg:block">
               <p className="text-sm font-medium">{user.name}</p>
-              <Badge tone={tone as Parameters<typeof Badge>[0]["tone"]} className="mt-0.5 capitalize">
+
+              <Badge
+                tone={tone as Parameters<typeof Badge>[0]["tone"]}
+                className="mt-0.5 capitalize"
+              >
                 {user.role}
               </Badge>
             </div>
           </button>
+
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
@@ -123,11 +156,18 @@ export function Topbar({
             >
               <div className="flex items-center gap-3 border-b border-white/10 px-3 py-3">
                 <Avatar name={user.name} size="md" />
+
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{user.name}</p>
-                  <p className="truncate text-xs text-secondary">{user.email}</p>
+                  <p className="truncate text-sm font-medium">
+                    {user.name}
+                  </p>
+
+                  <p className="truncate text-xs text-secondary">
+                    {user.email}
+                  </p>
                 </div>
               </div>
+
               <div className="py-1">
                 <button
                   onClick={() => {
@@ -139,6 +179,7 @@ export function Topbar({
                   <UserIcon className="h-4 w-4" />
                   Profile
                 </button>
+
                 <button
                   onClick={() => {
                     setMenuOpen(false);
@@ -150,6 +191,7 @@ export function Topbar({
                   Settings
                 </button>
               </div>
+
               <div className="border-t border-white/10 py-1">
                 <button
                   onClick={handleLogout}

@@ -92,12 +92,13 @@ export function Sidebar({ role, user }: { role: Role; user: CurrentUser }) {
     .toUpperCase();
 
   return (
-    <aside className="glass glass-highlight relative z-20 flex h-full w-[240px] flex-shrink-0 flex-col p-3 shadow-glass border-r border-white/5">
+    <aside className="glass glass-highlight relative z-20 flex h-full w-[240px] flex-shrink-0 flex-col border-r border-white/5 p-3 shadow-glass">
       <div className="mb-4 flex items-center justify-between px-2 pt-1">
         <div className="flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-iris to-aqua shadow-glow-iris">
             <Sparkles className="h-4.5 w-4.5 text-white" />
           </div>
+
           <span className="font-display text-sm font-semibold tracking-tight">
             Aether<span className="text-iris">Chat</span>
           </span>

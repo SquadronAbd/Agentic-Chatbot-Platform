@@ -37,4 +37,18 @@ ai/.env
 ai/models/
 ai/checkpoints/
 ai/cache/
-.venv
+
+# ===========================
+# Backend / Python
+# ===========================
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+backend/.env
+
+# Ignore all Python cache files
+**/__pycache__/
+*.py[cod]
+
+# Root virtual environment
+.venv/

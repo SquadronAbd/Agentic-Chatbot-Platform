@@ -173,25 +173,15 @@ function SectionCard({
     </GlassCard>
   );
 }
-
-function ProfileSection({ user }: { user: NonNullable<ReturnType<typeof useAuthStore.getState>["user"]> }) {
-  const setUser = useAuthStore((s) => s.setUser);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<UpdateProfileValues>({
-    resolver: zodResolver(updateProfileSchema),
-    defaultValues: { name: user.name, email: user.email },
-  });
-
-  function onSubmit(values: UpdateProfileValues) {
-    // Simulate profile update — integrate with PATCH /auth/me
-    const updated = { ...user, name: values.name, email: values.email };
-    setUser(updated);
-    toast.success("Profile updated");
+function ProfileSection({ user }: { 
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    is_active: boolean;
   }
-
+}) {
   return (
     <SectionCard title="Profile" subtitle="Your account information">
       <div className="mb-6 flex items-center gap-4">
@@ -199,75 +189,86 @@ function ProfileSection({ user }: { user: NonNullable<ReturnType<typeof useAuthS
         <div>
           <p className="font-medium">{user.name}</p>
           <p className="text-sm text-secondary">{user.email}</p>
-          <Badge tone={user.role === "admin" ? "iris" : user.role === "manager" ? "aqua" : "default"} className="mt-1 capitalize">
+          <Badge
+            tone={
+              user.role === "admin"
+                ? "iris"
+                : user.role === "manager"
+                ? "aqua"
+                : "default"
+            }
+            className="mt-1 capitalize"
+          >
             {user.role}
           </Badge>
         </div>
       </div>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+      <div className="space-y-4 max-w-md">
         <div>
-          <label className="mb-1.5 block text-xs font-mono text-secondary">Full name</label>
-          <Input {...register("name")} />
-          {errors.name && <p className="mt-1 text-xs text-rose-400">{errors.name.message}</p>}
+          <label className="mb-1.5 block text-xs font-mono text-secondary">
+            Full name
+          </label>
+          <Input
+            value={user.name}
+            disabled
+            className="opacity-60 cursor-not-allowed"
+          />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-mono text-secondary">Email</label>
-          <Input type="email" {...register("email")} />
-          {errors.email && <p className="mt-1 text-xs text-rose-400">{errors.email.message}</p>}
+          <label className="mb-1.5 block text-xs font-mono text-secondary">
+            Email
+          </label>
+          <Input
+            value={user.email}
+            disabled
+            className="opacity-60 cursor-not-allowed"
+          />
         </div>
-        <Button type="submit" disabled={isSubmitting}>
-          <Save className="h-4 w-4" />
-          Save changes
-        </Button>
-      </form>
+        <div>
+          <label className="mb-1.5 block text-xs font-mono text-secondary">
+            Role
+          </label>
+          <Input
+            value={user.role}
+            disabled
+            className="opacity-60 cursor-not-allowed capitalize"
+          />
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-secondary">
+          <strong className="text-[var(--text-primary)]">Note:</strong>{" "}
+          Profile editing is managed by your administrator via{" "}
+          <code className="rounded bg-white/10 px-1 font-mono">
+            POST /api/v1/users
+          </code>
+        </div>
+      </div>
     </SectionCard>
   );
 }
-
 function PasswordSection() {
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<ChangePasswordValues>({
-    resolver: zodResolver(changePasswordSchema),
-  });
-
-  function onSubmit() {
-    toast.success("Password updated");
-    reset();
-  }
-
   return (
-    <SectionCard title="Change password" subtitle="Keep your account secure">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-w-md">
-        <div>
-          <label className="mb-1.5 block text-xs font-mono text-secondary">Current password</label>
-          <Input type="password" {...register("currentPassword")} />
-          {errors.currentPassword && (
-            <p className="mt-1 text-xs text-rose-400">{errors.currentPassword.message}</p>
-          )}
+    <SectionCard
+      title="Change password"
+      subtitle="Keep your account secure"
+    >
+      <div className="flex flex-col items-center gap-4 py-8 text-center">
+        <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/5">
+          <Lock className="h-6 w-6 text-secondary" />
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-mono text-secondary">New password</label>
-          <Input type="password" {...register("newPassword")} />
-          {errors.newPassword && (
-            <p className="mt-1 text-xs text-rose-400">{errors.newPassword.message}</p>
-          )}
+          <p className="font-medium">Password management</p>
+          <p className="mt-1 text-sm text-secondary max-w-sm">
+            Password changes are handled by your administrator.
+            Contact your admin to update your credentials.
+          </p>
         </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-mono text-secondary">Confirm new password</label>
-          <Input type="password" {...register("confirmPassword")} />
-          {errors.confirmPassword && (
-            <p className="mt-1 text-xs text-rose-400">{errors.confirmPassword.message}</p>
-          )}
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-secondary max-w-sm">
+          <strong className="text-[var(--text-primary)]">Note:</strong> This feature
+          will be available in a future update via{" "}
+          <code className="rounded bg-white/10 px-1 font-mono">PUT /auth/password</code>
         </div>
-        <Button type="submit" disabled={isSubmitting}>
-          <Lock className="h-4 w-4" />
-          Update password
-        </Button>
-      </form>
+      </div>
     </SectionCard>
   );
 }
