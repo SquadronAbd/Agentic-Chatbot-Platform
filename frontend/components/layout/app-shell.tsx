@@ -4,8 +4,8 @@ import * as React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { AuroraField } from "@/components/layout/aurora-field";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import type { CurrentUser, Role } from "@/lib/types";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
+import type { CurrentUser, Role } from "@/lib/types";
 
 export function AppShell({
   children,
@@ -17,7 +17,9 @@ export function AppShell({
   return (
     <AuthGuard minimumRole={minimumRole}>
       {(user) => (
-        <AppShellContent user={user}>{children(user)}</AppShellContent>
+        <AppShellContent user={user}>
+          {children(user)}
+        </AppShellContent>
       )}
     </AuthGuard>
   );
@@ -33,13 +35,16 @@ function AppShellContent({
   return (
     <div className="relative flex h-screen w-full overflow-hidden">
       <AuroraField />
-      {/* Desktop sidebar — fixed width, full viewport height */}
+
+      {/* Desktop Sidebar */}
       <div className="hidden md:flex md:flex-shrink-0">
         <Sidebar role={user.role} user={user} />
       </div>
-      {/* Mobile drawer */}
+
+      {/* Mobile Sidebar */}
       <MobileDrawer role={user.role} user={user} />
-      {/* Main content — takes all remaining width, scrolls internally */}
+
+      {/* Main Content */}
       <main className="relative flex flex-1 flex-col overflow-hidden">
         {children}
       </main>

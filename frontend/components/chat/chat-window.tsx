@@ -209,6 +209,7 @@ export function ChatWindow({ user }: { user: CurrentUser }) {
         )}
       </div>
 
+
       {/* ── Input area ─────────────────────────────────────── */}
       <div className="flex-shrink-0 border-t border-white/8 bg-[var(--page-bg-a)]/60 backdrop-blur-md px-4 py-4">
         <div className="mx-auto w-full max-w-3xl">
