@@ -38,10 +38,10 @@ export const MOCK_MESSAGES: Message[] = [
 ];
 
 export const MOCK_CONVERSATIONS: Conversation[] = [
-  { id: "c1", title: "Q3 churn analysis", updatedAt: "2 min ago", messageCount: 12 },
-  { id: "c2", title: "Onboarding flow rewrite", updatedAt: "1 hr ago", messageCount: 34 },
-  { id: "c3", title: "Vendor contract review", updatedAt: "Yesterday", messageCount: 8 },
-  { id: "c4", title: "RAG eval harness ideas", updatedAt: "2 days ago", messageCount: 21 },
+  { id: "c1", title: "Q3 churn analysis", createdAt: "Jul 23", updatedAt: "2 min ago", messageCount: 12 },
+  { id: "c2", title: "Onboarding flow rewrite", createdAt: "Jul 22", updatedAt: "1 hr ago", messageCount: 34 },
+  { id: "c3", title: "Vendor contract review", createdAt: "Jul 21", updatedAt: "Yesterday", messageCount: 8 },
+  { id: "c4", title: "RAG eval harness ideas", createdAt: "Jul 19", updatedAt: "2 days ago", messageCount: 21 },
 ];
 
 export const MOCK_DOCUMENTS: KnowledgeDocument[] = [

@@ -2,9 +2,11 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 type Variant = "primary" | "glass" | "ghost" | "danger";
+type Size = "sm" | "md" | "lg" | "icon";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
+  size?: Size;
 }
 
 const variantClasses: Record<Variant, string> = {
@@ -15,12 +17,20 @@ const variantClasses: Record<Variant, string> = {
   danger: "bg-rose-500/90 text-white hover:bg-rose-500 shadow-glow-iris",
 };
 
-export function Button({ className, variant = "primary", ...props }: ButtonProps) {
+const sizeClasses: Record<Size, string> = {
+  sm: "h-8 px-3 text-xs rounded-lg",
+  md: "h-10 px-4 text-sm rounded-xl",
+  lg: "h-12 px-6 text-base rounded-xl",
+  icon: "h-10 w-10 p-0 rounded-xl",
+};
+
+export function Button({ className, variant = "primary", size = "md", ...props }: ButtonProps) {
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium font-display transition-all duration-300 disabled:opacity-40 disabled:pointer-events-none",
+        "inline-flex items-center justify-center gap-2 font-display font-medium transition-all duration-300 disabled:opacity-40 disabled:pointer-events-none",
         variantClasses[variant],
+        sizeClasses[size],
         className
       )}
       {...props}

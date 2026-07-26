@@ -1,12 +1,23 @@
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
 
 from app.core.database import get_db
 from app.api.v1 import auth, conversations, messages, users, documents, chat
 from app.api.v1 import agent_tools, api_keys, audit_logs, analytics
 
 app = FastAPI(title="Agentic Chatbot Platform - Backend")
+
+# CORS — allow the Next.js dev server (port 3000) and any localhost origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in settings.CORS_ORIGINS.split(",")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 API_V1_PREFIX = "/api/v1"
 

@@ -4,14 +4,24 @@ import * as React from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUIStore } from "@/store/ui-store";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const uiTheme = useUIStore((s) => s.theme);
+  const setUITheme = useUIStore((s) => s.setTheme);
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => setMounted(true), []);
 
-  const isDark = mounted && theme === "dark";
+  const effective = mounted ? (theme ?? uiTheme) : uiTheme;
+  const isDark = effective === "dark";
+
+  function toggle() {
+    const next = isDark ? "light" : "dark";
+    setTheme(next);
+    setUITheme(next);
+  }
 
   return (
     <button
@@ -19,7 +29,7 @@ export function ThemeToggle() {
       role="switch"
       aria-checked={isDark}
       aria-label="Toggle day / night glass theme"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={toggle}
       className={cn(
         "glass glass-highlight relative flex h-9 w-16 items-center rounded-full px-1 transition-colors duration-500",
         "shadow-glass hover:shadow-glass-lg"

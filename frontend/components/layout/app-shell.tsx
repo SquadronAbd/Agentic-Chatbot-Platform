@@ -1,14 +1,47 @@
+"use client";
+
+import * as React from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { AuroraField } from "@/components/layout/aurora-field";
-import type { CurrentUser } from "@/lib/types";
+import { AuthGuard } from "@/components/auth/auth-guard";
+import type { CurrentUser, Role } from "@/lib/types";
+import { MobileDrawer } from "@/components/layout/mobile-drawer";
 
-export function AppShell({ user, children }: { user: CurrentUser; children: React.ReactNode }) {
+export function AppShell({
+  children,
+  minimumRole,
+}: {
+  children: (user: CurrentUser) => React.ReactNode;
+  minimumRole?: Role;
+}) {
   return (
-    <div className="relative min-h-screen">
+    <AuthGuard minimumRole={minimumRole}>
+      {(user) => (
+        <AppShellContent user={user}>{children(user)}</AppShellContent>
+      )}
+    </AuthGuard>
+  );
+}
+
+function AppShellContent({
+  user,
+  children,
+}: {
+  user: CurrentUser;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative flex h-screen w-full overflow-hidden">
       <AuroraField />
-      <Sidebar role={user.role} />
-      <main className="min-h-screen pl-[100px] pr-4 pt-4 md:pl-[248px] md:pr-6">
-        <div className="mx-auto max-w-6xl pb-10">{children}</div>
+      {/* Desktop sidebar — fixed width, full viewport height */}
+      <div className="hidden md:flex md:flex-shrink-0">
+        <Sidebar role={user.role} user={user} />
+      </div>
+      {/* Mobile drawer */}
+      <MobileDrawer role={user.role} user={user} />
+      {/* Main content — takes all remaining width, scrolls internally */}
+      <main className="relative flex flex-1 flex-col overflow-hidden">
+        {children}
       </main>
     </div>
   );

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Plus_Jakarta_Sans, Sora, IBM_Plex_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { AppQueryProvider } from "@/providers/query-provider";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -33,6 +35,8 @@ export const metadata: Metadata = {
   description: "Multi-agent RAG chatbot platform with a glassmorphism day/night interface.",
 };
 
+const PUBLIC_PATHS = ["/login", "/register", "/403", "/404"];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -41,7 +45,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${spaceGrotesk.variable} ${plusJakarta.variable} ${sora.variable} ${plexMono.variable}`}
     >
       <body className="font-body antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <AppQueryProvider>
+          <ThemeProvider>
+            {children}
+            <Toaster
+              richColors
+              closeButton
+              position="top-right"
+              toastOptions={{
+                className: "glass glass-highlight glass-strong font-body",
+              }}
+              style={{
+                backdropFilter: "blur(20px)",
+              }}
+            />
+          </ThemeProvider>
+        </AppQueryProvider>
       </body>
     </html>
   );

@@ -12,4 +12,4 @@ class AgentTool(Base):
     name = Column(String, unique=True, nullable=False)
     description = Column(String, nullable=True)
     enabled = Column(Boolean, default=True)
-    config = Column(JSON, nullable=True) 
+    config = Column(JSON, nullable=True)

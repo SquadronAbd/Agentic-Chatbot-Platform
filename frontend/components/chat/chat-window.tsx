@@ -1,91 +1,297 @@
 "use client";
 
 import * as React from "react";
-import { User } from "lucide-react";
-import { GlassCard } from "@/components/ui/glass-card";
-import { StreamingMessage } from "@/components/chat/streaming-message";
+import { Trash2, Sparkles, Menu, PenLine } from "lucide-react";
+import { toast } from "sonner";
+import { StreamingMessage, UserMessage } from "@/components/chat/streaming-message";
 import { MessageInput } from "@/components/chat/message-input";
-import type { Message } from "@/lib/types";
+import { ChatSkeleton } from "@/components/ui/loading-skeleton";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/modal";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { Avatar } from "@/components/ui/avatar";
+import { useChatStream } from "@/hooks/use-chat-stream";
+import { useMessages, useCreateConversation, useDeleteConversation, useConversations } from "@/hooks/use-api";
+import { useUIStore } from "@/store/ui-store";
+import { useAuthStore } from "@/store/auth-store";
+import { cn } from "@/lib/utils";
+import type { CurrentUser } from "@/lib/types";
 
-/** Renders messages with lightweight markdown support (bold + inline code) and streams the latest assistant reply. */
-function formatInline(text: string) {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`(.+?)`/g, '<code class="rounded bg-white/20 px-1 py-0.5 font-mono text-[13px]">$1</code>');
-}
+export function ChatWindow({ user }: { user: CurrentUser }) {
+  const activeConversationId = useUIStore((s) => s.activeConversationId);
+  const setActive = useUIStore((s) => s.setActiveConversationId);
+  const setMobile = useUIStore((s) => s.setMobileMenuOpen);
+  const logout = useAuthStore((s) => s.logout);
 
-export function ChatWindow({ initialMessages }: { initialMessages: Message[] }) {
-  const [messages, setMessages] = React.useState(initialMessages);
-  const [streamingReply, setStreamingReply] = React.useState<string | null>(null);
-  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const { data: apiMessages, isLoading: messagesLoading } = useMessages(activeConversationId);
+  const { data: convs } = useConversations();
+  const createConv = useCreateConversation();
+  const deleteConv = useDeleteConversation();
+
+  const activeTitle = React.useMemo(() => {
+    if (!activeConversationId) return "New chat";
+    return convs?.find((c) => c.id === activeConversationId)?.title ?? "Chat";
+  }, [convs, activeConversationId]);
+
+  const {
+    send,
+    stop,
+    regenerate,
+    clearMessages,
+    updateMessage,
+    isStreaming,
+    streamingContent,
+    streamingMessageId,
+    messages,
+    setMessages,
+    wsStatus,
+  } = useChatStream(activeConversationId);
+
+  const [showClearConfirm, setShowClearConfirm] = React.useState(false);
+
+  const displayMessages = React.useMemo(() => {
+    if (messages.length > 0) return messages;
+    if (apiMessages && apiMessages.length > 0) return apiMessages;
+    return [];
+  }, [messages, apiMessages]);
 
   React.useEffect(() => {
+    if (apiMessages && apiMessages.length > 0) {
+      setMessages(apiMessages);
+    }
+  }, [apiMessages, setMessages]);
+
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, streamingReply]);
+  }, [displayMessages, streamingContent, isStreaming]);
 
-  function handleSend(text: string) {
-    const userMessage: Message = {
-      id: `m_${Date.now()}`,
-      role: "user",
-      content: text,
-      createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-
-    // Placeholder reply — in production this is replaced by useChat()
-    // from the Vercel AI SDK consuming POST /chat/stream (SSE).
-    window.setTimeout(() => {
-      setStreamingReply(
-        "Here's a draft answer based on the retrieved context. Once `/chat/stream` is live, this will be real model output streamed token by token via Server-Sent Events."
-      );
-    }, 400);
+  async function handleSend(prompt: string) {
+    let convId = activeConversationId;
+    if (!convId) {
+      try {
+        const conv = await createConv.mutateAsync({ title: prompt.slice(0, 60) });
+        convId = conv.id;
+        setActive(conv.id);
+        // small delay to let WS reconnect with the new conversation_id
+        await new Promise((r) => setTimeout(r, 150));
+      } catch {
+        toast.error("Could not create conversation");
+        return;
+      }
+    }
+    try {
+      send(prompt);
+    } catch {
+      toast.error("Not connected to chat stream");
+    }
   }
 
-  return (
-    <div className="flex h-[calc(100vh-9rem)] flex-col gap-4">
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pr-1">
-        {messages.map((message) =>
-          message.role === "user" ? (
-            <div key={message.id} className="flex items-start justify-end gap-3">
-              <GlassCard strong className="max-w-[75%] bg-gradient-to-br from-iris/25 to-aqua/10 px-4 py-3">
-                <p
-                  className="text-sm leading-relaxed font-body"
-                  dangerouslySetInnerHTML={{ __html: formatInline(message.content) }}
-                />
-                <p className="mt-1 font-mono text-[11px] text-secondary">{message.createdAt}</p>
-              </GlassCard>
-              <div className="mt-1 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-white/30">
-                <User className="h-3.5 w-3.5" />
-              </div>
-            </div>
-          ) : (
-            <StreamingContentBubble key={message.id} content={message.content} tokens={message.tokens} />
-          )
-        )}
+  const visibleMessages = React.useMemo(() => {
+    if (!streamingMessageId) return displayMessages;
+    return displayMessages.map((m) =>
+      m.id === streamingMessageId && streamingContent ? { ...m, content: streamingContent } : m
+    );
+  }, [displayMessages, streamingMessageId, streamingContent]);
 
-        {streamingReply && (
-          <StreamingMessage fullText={streamingReply} tokens={143} />
+  const lastAssistantIdx = React.useMemo(
+    () => [...visibleMessages].reverse().findIndex((m) => m.role === "assistant"),
+    [visibleMessages]
+  );
+
+  const isEmpty = visibleMessages.length === 0;
+
+  // WS status indicator colour
+  const wsColor =
+    wsStatus === "connected" ? "bg-emerald-400" :
+    wsStatus === "connecting" ? "bg-amber-400 animate-pulse" :
+    wsStatus === "error" ? "bg-rose-500" : "bg-white/20";
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* ── Header ─────────────────────────────────────────── */}
+      <header className="flex flex-shrink-0 items-center justify-between border-b border-white/8 px-4 py-3">
+        <div className="flex items-center gap-3">
+          {/* Mobile hamburger */}
+          <button
+            type="button"
+            className="rounded-xl p-1.5 text-secondary hover:bg-white/10 hover:text-[var(--text-primary)] md:hidden"
+            onClick={() => setMobile(true)}
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="font-display text-sm font-semibold tracking-tight truncate max-w-[160px] sm:max-w-xs">
+              {activeTitle}
+            </span>
+            {/* WS connection dot */}
+            <span title={`WebSocket: ${wsStatus}`} className={cn("inline-block h-2 w-2 rounded-full", wsColor)} />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={() => { setActive(null); clearMessages(); }}
+          >
+            <PenLine className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">New chat</span>
+          </Button>
+
+          {!isEmpty && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowClearConfirm(true)}
+              className="text-secondary hover:text-rose-400"
+              title="Clear conversation"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+
+          <ThemeToggle />
+
+          {/* User avatar */}
+          <button
+            type="button"
+            onClick={() => logout().then(() => window.location.replace("/login"))}
+            title="Sign out"
+            className="ml-1"
+          >
+            <Avatar name={user.name} size="sm" />
+          </button>
+        </div>
+      </header>
+
+      {/* ── Messages scroll area ───────────────────────────── */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-4 py-6 space-y-1"
+      >
+        {messagesLoading && !messages.length ? (
+          <ChatSkeleton messages={3} />
+        ) : isEmpty ? (
+          <EmptyWelcome user={user} onSuggestion={handleSend} />
+        ) : (
+          <div className="mx-auto w-full max-w-3xl space-y-6">
+            {visibleMessages.map((m, idx) =>
+              m.role === "user" ? (
+                <UserMessage
+                  key={m.id}
+                  content={m.content}
+                  timestamp={m.createdAt}
+                  name={user.name}
+                />
+              ) : (
+                <StreamingMessage
+                  key={m.id}
+                  content={m.content}
+                  tokens={m.tokens}
+                  timestamp={m.createdAt}
+                  isStreaming={m.id === streamingMessageId && isStreaming}
+                  onStop={stop}
+                  onRegenerate={
+                    lastAssistantIdx !== -1 && idx === visibleMessages.length - 1 - lastAssistantIdx
+                      ? () => {
+                          try { regenerate(); } catch { toast.error("Nothing to regenerate"); }
+                        }
+                      : undefined
+                  }
+                />
+              )
+            )}
+          </div>
         )}
       </div>
 
-      <MessageInput onSend={handleSend} />
+      {/* ── Input area ─────────────────────────────────────── */}
+      <div className="flex-shrink-0 border-t border-white/8 bg-[var(--page-bg-a)]/60 backdrop-blur-md px-4 py-4">
+        <div className="mx-auto w-full max-w-3xl">
+          <MessageInput onSend={handleSend} onStop={stop} isStreaming={isStreaming} />
+          <p className="mt-2 text-center text-[11px] text-secondary">
+            AetherChat can make mistakes. Consider checking important information.
+          </p>
+        </div>
+      </div>
+
+      {/* ── Confirm clear dialog ───────────────────────────── */}
+      <ConfirmDialog
+        open={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        onConfirm={() => {
+          clearMessages();
+          if (activeConversationId) {
+            deleteConv.mutate(activeConversationId, {
+              onSuccess: () => {
+                setActive(null);
+                toast.success("Conversation cleared");
+              },
+            });
+          }
+          setShowClearConfirm(false);
+        }}
+        title="Clear conversation?"
+        description="This cannot be undone. All messages in this chat will be deleted."
+        confirmLabel="Clear"
+        confirmVariant="danger"
+        isLoading={deleteConv.isPending}
+      />
     </div>
   );
 }
 
-function StreamingContentBubble({ content, tokens }: { content: string; tokens?: number }) {
+const SUGGESTIONS = [
+  { label: "Summarize the latest uploaded documents", emoji: "📄" },
+  { label: "What are the key themes in the support tickets?", emoji: "🔍" },
+  { label: "Draft a follow-up email for the Q3 review", emoji: "✉️" },
+  { label: "Explain the pricing model changes", emoji: "💡" },
+];
+
+function EmptyWelcome({ user, onSuggestion }: { user: CurrentUser; onSuggestion: (s: string) => void }) {
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
   return (
-    <div className="flex items-start gap-3">
-      <div className="mt-1 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-iris to-aqua shadow-glow-iris">
-        <span className="font-display text-[10px] font-bold text-white">AI</span>
+    <div className="flex h-full flex-col items-center justify-center gap-8 px-4 py-12">
+      {/* Avatar + greeting */}
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-iris/40 to-aqua/25 shadow-glow-iris">
+          <Sparkles className="h-8 w-8 text-iris-light" />
+        </div>
+        <div>
+          <h2 className="font-display text-2xl font-semibold tracking-tight">
+            {greeting}, {user.name.split(" ")[0]}
+          </h2>
+          <p className="mt-1 text-sm text-secondary">
+            How can AetherChat help you today?
+          </p>
+        </div>
       </div>
-      <GlassCard className="max-w-[75%] px-4 py-3">
-        <p
-          className="text-sm leading-relaxed font-body"
-          dangerouslySetInnerHTML={{ __html: formatInline(content) }}
-        />
-        {tokens && <p className="mt-2 font-mono text-[11px] text-secondary">{tokens} tokens</p>}
-      </GlassCard>
+
+      {/* Suggestion grid */}
+      <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+        {SUGGESTIONS.map((s) => (
+          <button
+            key={s.label}
+            onClick={() => onSuggestion(s.label)}
+            className={cn(
+              "group flex items-start gap-3 rounded-xl border border-white/8 bg-white/5 p-4 text-left",
+              "transition-all hover:border-iris/30 hover:bg-white/10 hover:shadow-glow-iris"
+            )}
+          >
+            <span className="text-xl leading-none">{s.emoji}</span>
+            <span className="text-sm text-secondary group-hover:text-[var(--text-primary)] transition-colors">
+              {s.label}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

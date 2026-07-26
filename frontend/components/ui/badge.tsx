@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 
 const tones = {
   neutral: "bg-white/40 dark:bg-white/10 text-[var(--text-primary)]",
+  default: "bg-white/20 text-[var(--text-primary)]",
+  outline: "border border-white/20 text-secondary",
   iris: "bg-iris/15 text-iris-dim dark:text-iris-light",
   aqua: "bg-aqua/15 text-aqua-dim dark:text-aqua-light",
   success: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
