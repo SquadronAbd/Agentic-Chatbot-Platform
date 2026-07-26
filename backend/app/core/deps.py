@@ -1,10 +1,11 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Header, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.core.config import settings
 from app.models.users import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -44,3 +45,12 @@ def require_role(*allowed_roles: str):
 def is_privileged(user: User) -> bool:
     """Admin/Manager can see across all users' data; Agent/Viewer are scoped to their own."""
     return user.role in ("admin", "manager")
+
+async def verify_internal_api_key(
+    x_internal_api_key: str = Header(..., alias="X-Internal-Api-Key"),
+) -> None:
+    if x_internal_api_key != settings.INTERNAL_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid internal API key",
+        )

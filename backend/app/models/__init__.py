@@ -7,8 +7,10 @@ from app.models.agent_tools import AgentTool
 from app.models.api_keys import ApiKey
 from app.models.audit_logs import AuditLog
 from app.models.dag_chat_metrics import DailyChatMetric
+from app.models.document_health_runs import DocumentHealthRun
 
 __all__ = [
     "User",  "Conversation", "Message", "message_chunks", "Document",
-    "DocumentChunk", "AgentTool", "ApiKey", "AuditLog", "DailyChatMetric"
+    "DocumentChunk", "AgentTool", "ApiKey", "AuditLog", "DailyChatMetric",
+    "DocumentHealthRun",
 ]
