@@ -1,5 +1,16 @@
 from __future__ import annotations
+import os
 from typing import Optional
+
+from app.config.settings import settings
+
+# Use Groq as the LLM judge (OpenAI-compatible API).
+# deepeval reads OPENAI_API_KEY + OPENAI_API_BASE to route requests.
+if settings.GROQ_API_KEY:
+    os.environ.setdefault("OPENAI_API_KEY", settings.GROQ_API_KEY)
+    os.environ.setdefault("OPENAI_API_BASE", "https://api.groq.com/openai/v1")
+elif settings.OPENAI_API_KEY:
+    os.environ.setdefault("OPENAI_API_KEY", settings.OPENAI_API_KEY)
 
 from deepeval import evaluate as deepeval_run
 from deepeval.metrics import (
@@ -32,14 +43,16 @@ class RAGEvaluator:
     def __init__(self, threshold: float = 0.7) -> None:
         self.threshold = threshold
 
+    JUDGE_MODEL = "llama-3.3-70b-versatile"
+
     def _build_metrics(self, include_recall: bool) -> list:
         metrics = [
-            AnswerRelevancyMetric(threshold=self.threshold),
-            FaithfulnessMetric(threshold=self.threshold),
-            ContextualPrecisionMetric(threshold=self.threshold),
+            AnswerRelevancyMetric(threshold=self.threshold, model=self.JUDGE_MODEL),
+            FaithfulnessMetric(threshold=self.threshold, model=self.JUDGE_MODEL),
+            ContextualPrecisionMetric(threshold=self.threshold, model=self.JUDGE_MODEL),
         ]
         if include_recall:
-            metrics.append(ContextualRecallMetric(threshold=self.threshold))
+            metrics.append(ContextualRecallMetric(threshold=self.threshold, model=self.JUDGE_MODEL))
         return metrics
 
     def score(
