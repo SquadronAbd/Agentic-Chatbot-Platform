@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, Column, String, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -15,5 +15,6 @@ class DocumentChunk(Base):
     chunk_index = Column(Integer, nullable=False)
     page_number = Column(Integer, nullable=True)
     embedding_id = Column(String, nullable=True) # reference to the vector in ChromaDB
+    needs_reindex = Column(Boolean, default=False, nullable=False)
 
     document = relationship("Document", back_populates="chunks")

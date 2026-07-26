@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
 
+import uuid
 import pandas as pd
 from airflow.decorators import dag, task
 
-CHATBOT_DB_URL = "postgresql://postgres:apppass@host.docker.internal:5432/chatbot_db"
+CHATBOT_DB_URL = (
+    "postgresql://postgres:apppass@host.docker.internal:5434/chatbot_db"
+)
 PARQUET_DIR = "/tmp"
 
 default_args = {
@@ -17,7 +20,7 @@ default_args = {
     dag_id="dag_chat_analytics",
     default_args=default_args,
     description="Nightly: extract messages -> compute metrics -> load to analytics schema",
-    schedule="0 2 * * *",
+    schedule=None,
     start_date=datetime(2026, 7, 1),
     catchup=False,
     tags=["analytics", "chatbot"],
@@ -39,6 +42,10 @@ def dag_chat_analytics():
         """)
         with engine.connect() as conn:
             df = pd.read_sql(query, conn)
+
+        df["id"] = df["id"].astype(str)
+        df["conversation_id"] = df["conversation_id"].astype(str)
+        df["user_id"] = df["user_id"].astype(str)
 
         raw_path = f"{PARQUET_DIR}/raw_messages_{ds}.parquet"
         df.to_parquet(raw_path, index=False)
@@ -107,9 +114,25 @@ def dag_chat_analytics():
                 conn.execute(
                     text("""
                         INSERT INTO daily_chat_metrics
-                            (date, user_id, message_count, avg_tokens, p95_latency_ms, daily_active_users)
-                        VALUES
-                            (:date, :user_id, :message_count, :avg_tokens, :p95_latency_ms, :daily_active_users)
+                        (
+                            id,
+                            date,
+                            user_id,
+                            message_count,
+                            avg_tokens,
+                            p95_latency_ms,
+                            daily_active_users
+                        )
+                    VALUES
+                        (
+                            :id,
+                            :date,
+                            :user_id,
+                            :message_count,
+                            :avg_tokens,
+                            :p95_latency_ms,
+                            :daily_active_users
+                        )
                         ON CONFLICT (date, user_id) DO UPDATE
                         SET message_count = EXCLUDED.message_count,
                             avg_tokens = EXCLUDED.avg_tokens,
@@ -117,6 +140,7 @@ def dag_chat_analytics():
                             daily_active_users = EXCLUDED.daily_active_users
                     """),
                     {
+                        "id": uuid.uuid4(),
                         "date": row["date"],
                         "user_id": row["user_id"],
                         "message_count": int(row["message_count"]),
