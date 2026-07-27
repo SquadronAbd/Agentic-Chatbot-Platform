@@ -182,6 +182,7 @@ function ProfileSection({ user }: {
     is_active: boolean;
   }
 }) {
+}) {
   return (
     <SectionCard title="Profile" subtitle="Your account information">
       <div className="mb-6 flex items-center gap-4">
@@ -205,7 +206,17 @@ function ProfileSection({ user }: {
       </div>
 
       <div className="space-y-4 max-w-md">
+
+      <div className="space-y-4 max-w-md">
         <div>
+          <label className="mb-1.5 block text-xs font-mono text-secondary">
+            Full name
+          </label>
+          <Input
+            value={user.name}
+            disabled
+            className="opacity-60 cursor-not-allowed"
+          />
           <label className="mb-1.5 block text-xs font-mono text-secondary">
             Full name
           </label>
@@ -224,7 +235,33 @@ function ProfileSection({ user }: {
             disabled
             className="opacity-60 cursor-not-allowed"
           />
+          <label className="mb-1.5 block text-xs font-mono text-secondary">
+            Email
+          </label>
+          <Input
+            value={user.email}
+            disabled
+            className="opacity-60 cursor-not-allowed"
+          />
         </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-mono text-secondary">
+            Role
+          </label>
+          <Input
+            value={user.role}
+            disabled
+            className="opacity-60 cursor-not-allowed capitalize"
+          />
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-secondary">
+          <strong className="text-[var(--text-primary)]">Note:</strong>{" "}
+          Profile editing is managed by your administrator via{" "}
+          <code className="rounded bg-white/10 px-1 font-mono">
+            POST /api/v1/users
+          </code>
+        </div>
+      </div>
         <div>
           <label className="mb-1.5 block text-xs font-mono text-secondary">
             Role
@@ -255,8 +292,20 @@ function PasswordSection() {
       <div className="flex flex-col items-center gap-4 py-8 text-center">
         <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/5">
           <Lock className="h-6 w-6 text-secondary" />
+    <SectionCard
+      title="Change password"
+      subtitle="Keep your account secure"
+    >
+      <div className="flex flex-col items-center gap-4 py-8 text-center">
+        <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/5">
+          <Lock className="h-6 w-6 text-secondary" />
         </div>
         <div>
+          <p className="font-medium">Password management</p>
+          <p className="mt-1 text-sm text-secondary max-w-sm">
+            Password changes are handled by your administrator.
+            Contact your admin to update your credentials.
+          </p>
           <p className="font-medium">Password management</p>
           <p className="mt-1 text-sm text-secondary max-w-sm">
             Password changes are handled by your administrator.
@@ -267,7 +316,12 @@ function PasswordSection() {
           <strong className="text-[var(--text-primary)]">Note:</strong> This feature
           will be available in a future update via{" "}
           <code className="rounded bg-white/10 px-1 font-mono">PUT /auth/password</code>
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-secondary max-w-sm">
+          <strong className="text-[var(--text-primary)]">Note:</strong> This feature
+          will be available in a future update via{" "}
+          <code className="rounded bg-white/10 px-1 font-mono">PUT /auth/password</code>
         </div>
+      </div>
       </div>
     </SectionCard>
   );
