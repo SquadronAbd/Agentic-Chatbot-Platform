@@ -286,7 +286,7 @@ export default function AdminPage() {
             open={createOpen}
             onClose={() => setCreateOpen(false)}
             title="Add new user"
-            description="Invite a team member to AetherChat"
+            description="Invite a team member to FinRAG"
           >
             <form onSubmit={handleSubmit(onCreateSubmit)} className="space-y-3.5">
               <div>

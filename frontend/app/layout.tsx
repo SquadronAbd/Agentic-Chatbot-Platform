@@ -3,6 +3,8 @@ import { Space_Grotesk, Plus_Jakarta_Sans, Sora, IBM_Plex_Mono } from "next/font
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { AppQueryProvider } from "@/providers/query-provider";
 import { Toaster } from "sonner";
+// TypeScript may complain about side-effect CSS imports in some setups.
+// @ts-ignore
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -31,8 +33,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AetherChat — Agentic Chatbot Platform",
-  description: "Multi-agent RAG chatbot platform with a glassmorphism day/night interface.",
+  title: "FinRAG",
+  description: "FinRAG is a multi-agent AI platform for intelligent document and conversation experiences.",
 };
 
 const PUBLIC_PATHS = ["/login", "/register", "/403", "/404"];

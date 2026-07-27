@@ -67,7 +67,7 @@ export function MobileDrawer({ role, user }: { role: Role; user: CurrentUser }) 
                   <Sparkles className="h-4 w-4 text-white" />
                 </div>
                 <span className="font-display text-sm font-semibold tracking-tight">
-                  Aether<span className="text-iris">Chat</span>
+                  Fin<span className="text-iris">Chat</span>
                 </span>
               </div>
               <button

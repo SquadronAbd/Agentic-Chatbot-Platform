@@ -174,7 +174,7 @@ export function MessageInput({
                   submit(e as unknown as React.FormEvent);
                 }
               }}
-              placeholder="Message AetherChat…"
+              placeholder="Message FinRAG…"
               rows={1}
               className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-2 text-sm font-body outline-none placeholder:text-secondary"
             />
