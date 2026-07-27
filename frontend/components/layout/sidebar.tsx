@@ -100,7 +100,7 @@ export function Sidebar({ role, user }: { role: Role; user: CurrentUser }) {
           </div>
 
           <span className="font-display text-sm font-semibold tracking-tight">
-            Aether<span className="text-iris">Chat</span>
+            Fin<span className="text-iris">RAG</span>
           </span>
         </div>
       </div>

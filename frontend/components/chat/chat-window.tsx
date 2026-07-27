@@ -215,7 +215,7 @@ export function ChatWindow({ user }: { user: CurrentUser }) {
         <div className="mx-auto w-full max-w-3xl">
           <MessageInput onSend={handleSend} onStop={stop} isStreaming={isStreaming} />
           <p className="mt-2 text-center text-[11px] text-secondary">
-            AetherChat can make mistakes. Consider checking important information.
+            FinRAG can make mistakes. Consider checking important information.
           </p>
         </div>
       </div>
@@ -270,7 +270,7 @@ function EmptyWelcome({ user, onSuggestion }: { user: CurrentUser; onSuggestion:
             {greeting}, {user.name.split(" ")[0]}
           </h2>
           <p className="mt-1 text-sm text-secondary">
-            How can AetherChat help you today?
+            How can FinRAG help you today?
           </p>
         </div>
       </div>

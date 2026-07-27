@@ -87,66 +87,66 @@ export default function SettingsPage() {
       {(u) => (
         <div className="flex h-full flex-col overflow-y-auto">
           <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:px-6">
-          <Topbar
-            title="Settings"
-            subtitle="Manage your account and workspace"
-            breadcrumb={[{ label: "Workspace" }, { label: "Settings" }]}
-            user={u}
-          />
+            <Topbar
+              title="Settings"
+              subtitle="Manage your account and workspace"
+              breadcrumb={[{ label: "Workspace" }, { label: "Settings" }]}
+              user={u}
+            />
 
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_1fr]">
-            <div className="lg:sticky lg:top-28">
-              <GlassCard className="p-2 shadow-glass">
-                <nav className="flex flex-row gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
-                  {TABS.map((t) => {
-                    const Icon = t.icon;
-                    const active = tab === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => setTab(t.id)}
-                        className={cn(
-                          "flex flex-shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition-all lg:w-full",
-                          active
-                            ? "bg-gradient-to-r from-iris/20 to-aqua/10 text-[var(--text-primary)] shadow-glow-iris"
-                            : "text-secondary hover:bg-white/10 hover:text-[var(--text-primary)]"
-                        )}
-                      >
-                        <Icon className="h-4 w-4 flex-shrink-0" />
-                        <span>{t.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-                <div className="my-2 border-t border-white/10" />
-                <button
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-rose-400 transition-colors hover:bg-white/10"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign out</span>
-                </button>
-              </GlassCard>
-            </div>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_1fr]">
+              <div className="lg:sticky lg:top-28">
+                <GlassCard className="p-2 shadow-glass">
+                  <nav className="flex flex-row gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
+                    {TABS.map((t) => {
+                      const Icon = t.icon;
+                      const active = tab === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          onClick={() => setTab(t.id)}
+                          className={cn(
+                            "flex flex-shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition-all lg:w-full",
+                            active
+                              ? "bg-gradient-to-r from-iris/20 to-aqua/10 text-[var(--text-primary)] shadow-glow-iris"
+                              : "text-secondary hover:bg-white/10 hover:text-[var(--text-primary)]"
+                          )}
+                        >
+                          <Icon className="h-4 w-4 flex-shrink-0" />
+                          <span>{t.label}</span>
+                        </button>
+                      );
+                    })}
+                  </nav>
+                  <div className="my-2 border-t border-white/10" />
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-rose-400 transition-colors hover:bg-white/10"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Sign out</span>
+                  </button>
+                </GlassCard>
+              </div>
 
-            <div>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={tab}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {tab === "profile" && <ProfileSection user={user} />}
-                  {tab === "password" && <PasswordSection />}
-                  {tab === "appearance" && <AppearanceSection />}
-                  {tab === "apikeys" && <ApiKeysSection />}
-                  {tab === "tools" && <AgentToolsSection />}
-                </motion.div>
-              </AnimatePresence>
+              <div>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={tab}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {tab === "profile" && <ProfileSection user={user} />}
+                    {tab === "password" && <PasswordSection />}
+                    {tab === "appearance" && <AppearanceSection />}
+                    {tab === "apikeys" && <ApiKeysSection />}
+                    {tab === "tools" && <AgentToolsSection />}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
-          </div>
           </div>
         </div>
       )}
@@ -173,7 +173,7 @@ function SectionCard({
     </GlassCard>
   );
 }
-function ProfileSection({ user }: { 
+function ProfileSection({ user }: {
   user: {
     id: string;
     name: string;
@@ -194,8 +194,8 @@ function ProfileSection({ user }: {
               user.role === "admin"
                 ? "iris"
                 : user.role === "manager"
-                ? "aqua"
-                : "default"
+                  ? "aqua"
+                  : "default"
             }
             className="mt-1 capitalize"
           >
@@ -278,7 +278,7 @@ function AppearanceSection() {
   const setTheme = useUIStore((s) => s.setTheme);
 
   return (
-    <SectionCard title="Appearance" subtitle="Customize how AetherChat looks">
+    <SectionCard title="Appearance" subtitle="Customize how FinRAG looks">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className={cn(
@@ -406,7 +406,7 @@ function ApiKeysSection() {
   return (
     <SectionCard
       title="API keys"
-      subtitle="Manage keys used to authenticate with the AetherChat API"
+      subtitle="Manage keys used to authenticate with the FinRAG API"
     >
       <div className="mb-5 flex justify-end">
         <Button

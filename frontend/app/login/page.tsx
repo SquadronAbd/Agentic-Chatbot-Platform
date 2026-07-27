@@ -56,7 +56,7 @@ export default function LoginPage() {
   return (
     <AuthCard
       title="Welcome back"
-      subtitle="Sign in to AetherChat"
+      subtitle="Sign in to FinRAG"
       footer={
         <>
           New here?{" "}

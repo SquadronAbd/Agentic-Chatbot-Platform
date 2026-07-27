@@ -54,7 +54,7 @@ export default function RegisterPage() {
   return (
     <AuthCard
       title="Create your account"
-      subtitle="Start chatting with AetherChat"
+      subtitle="Start chatting with FinRAG"
       footer={
         <>
           Already have an account?{" "}

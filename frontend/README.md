@@ -1,4 +1,4 @@
-# AetherChat — Frontend
+# FinRAG — Frontend
 
 A Next.js 14 (App Router) frontend for the Agentic Chatbot Platform, implementing the routes and components from spec section 9, styled as **glassmorphism with a day/night toggle** — frosted panels floating over a slowly drifting "aurora" of blurred color, with fonts, palette, and glow intensity all swapping when you flip the switch.
 
