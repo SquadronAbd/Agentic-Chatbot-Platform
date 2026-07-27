@@ -17,7 +17,9 @@ The system utilizes **PostgreSQL + pgvector** for semantic retrieval, enabling e
 - 💬 Context-Aware Conversational Chat
 - 📝 Multi-turn Conversation Memory
 - 🔄 Reflection-based Response Validation
+
 - 🛠️ Tool-Augmented Reasoning
+
 - 📂 Markdown Financial Document Processing
 - 🔐 JWT Authentication & Role-Based Access Control
 - 📊 Modern Analytics Dashboard
