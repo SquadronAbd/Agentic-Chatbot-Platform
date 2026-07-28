@@ -1,0 +1,194 @@
+services:
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL + pgvector
+  # Hosts two databases:
+  #   financial_rag  — RAG chunk embeddings (Agentic service)
+  #   chatbot_db     — Backend application tables
+  # ─────────────────────────────────────────────
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: financial_rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+      - ./backend/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
+      - ./backend/init-restore.sh:/docker-entrypoint-initdb.d/02-init-restore.sh
+      - ./backend/dumps/financial_rag.dump:/docker-entrypoint-initdb.d/financial_rag.dump
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Redis — session caching & rate limiting
+  # ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: chatbot_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Agentic AI Service — LangChain/LangGraph RAG
+  # Port 8001
+  # ─────────────────────────────────────────────
+  agentic:
+    build:
+      context: ./Agentic
+      dockerfile: Dockerfile
+    container_name: agentic_service
+    restart: unless-stopped
+    env_file:
+      - ./Agentic/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:password@pgvector:5432/financial_rag
+      COLLECTION_NAME: documents
+    ports:
+      - "8001:8000"
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    volumes:
+      - ./backend/data/markdowns:/app/documents
+
+  # ─────────────────────────────────────────────
+  # Backend — FastAPI application
+  # Port 8000
+  # ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chatbot_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_URL: postgresql+asyncpg://postgres:password@pgvector:5432/chatbot_db
+      REDIS_URL: redis://redis:6379/0
+      AI_SERVICE_URL: http://agentic:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      pgvector:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      agentic:
+        condition: service_started
+
+  # ─────────────────────────────────────────────
+  # Frontend — Next.js
+  # Port 3000
+  # ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+    container_name: chatbot_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  # ─────────────────────────────────────────────
+  # Airflow — analytics & maintenance DAGs
+  # ─────────────────────────────────────────────
+  airflow-db:
+    image: postgres:16-alpine
+    container_name: airflow_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    image: apache/airflow:2.10.2
+    container_name: airflow_init
+    restart: no
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _PIP_ADDITIONAL_REQUIREMENTS: pandas sqlalchemy psycopg2-binary pyarrow
+    entrypoint: /bin/bash
+    command: >
+      -c "airflow db migrate &&
+          airflow users create
+            --username admin --password admin
+            --firstname Admin --lastname User
+            --role Admin --email admin@example.com || true"
+
+  airflow-webserver:
+    image: apache/airflow:2.10.2
+    container_name: airflow_webserver
+    restart: unless-stopped
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _PIP_ADDITIONAL_REQUIREMENTS: pandas sqlalchemy psycopg2-binary pyarrow
+      RAG_DB_URL: postgresql://postgres:password@pgvector:5432/financial_rag
+    volumes:
+      - ./backend/airflow/dags:/opt/airflow/dags
+      - ./backend/airflow/logs:/opt/airflow/logs
+    ports:
+      - "8080:8080"
+    command: webserver
+
+  airflow-scheduler:
+    image: apache/airflow:2.10.2
+    container_name: airflow_scheduler
+    restart: unless-stopped
+    depends_on:
+      airflow-db:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      _PIP_ADDITIONAL_REQUIREMENTS: pandas sqlalchemy psycopg2-binary pyarrow
+      RAG_DB_URL: postgresql://postgres:password@pgvector:5432/financial_rag
+    volumes:
+      - ./backend/airflow/dags:/opt/airflow/dags
+      - ./backend/airflow/logs:/opt/airflow/logs
+    command: scheduler
+
+volumes:
+  pgvector_data:
+  airflow_pgdata:
