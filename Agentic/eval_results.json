@@ -1,1 +1,87 @@
-[]
+[
+  {
+    "question": "What was the value of Generic product count of Kiniksa Pharmaceuticals, Ltd. at the end of the period listed in annual report? If data is not available, return 'N/A'.",
+    "kind": "number",
+    "answer": "N/A",
+    "scores": {
+      "AnswerRelevancyMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because the output perfectly addresses the question about the Generic product count of Kiniksa Pharmaceuticals, Ltd. with no irrelevant statements, demonstrating a complete and accurate response."
+      },
+      "FaithfulnessMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because there are no contradictions found, indicating a perfect alignment between the actual output and the retrieval context, which is absolutely fantastic!"
+      }
+    }
+  },
+  {
+    "question": "Which leadership positions changed at Duni Group in the reporting period? If data is not available, return 'N/A'. Give me the title of the position.",
+    "kind": "names",
+    "answer": "N/A",
+    "scores": {
+      "AnswerRelevancyMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because the actual output perfectly addresses the input question, providing a direct and relevant response without any irrelevant statements, earning a perfect score."
+      },
+      "FaithfulnessMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because there are no contradictions found, indicating a perfect alignment between the actual output and the retrieval context, which is absolutely fantastic!"
+      }
+    }
+  },
+  {
+    "question": "What was the value of Number of active pharmaceutical patents of Kiniksa Pharmaceuticals, Ltd. at the end of the period listed in annual report? If data is not available, return 'N/A'.",
+    "kind": "number",
+    "answer": "N/A",
+    "scores": {
+      "AnswerRelevancyMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because the actual output perfectly addresses the question about the Number of active pharmaceutical patents of Kiniksa Pharmaceuticals, Ltd. with no irrelevant statements, resulting in a flawless relevancy score."
+      },
+      "FaithfulnessMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because there are no contradictions found, indicating a perfect alignment between the actual output and the retrieval context, which is absolutely fantastic!"
+      }
+    }
+  },
+  {
+    "question": "For Rectifier Technologies Ltd, what was the value of Number of patents at year-end at the end of the period listed in annual report? If data is not available, return 'N/A'.",
+    "kind": "number",
+    "answer": "N/A",
+    "scores": {
+      "AnswerRelevancyMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because the output perfectly addresses the question, providing a direct and relevant answer to the inquiry about Rectifier Technologies Ltd's number of patents at year-end, with no irrelevant statements present."
+      },
+      "FaithfulnessMetric": {
+        "score": 1,
+        "passed": true,
+        "reason": "The score is 1.00 because there are no contradictions found, indicating a perfect alignment between the actual output and the retrieval context, which is absolutely fantastic!"
+      }
+    }
+  },
+  {
+    "question": "Did Incitec Pivot Limited detail any restructuring plans in the latest filing? If there is no mention, return False.",
+    "kind": "boolean",
+    "answer": "False",
+    "scores": {
+      "AnswerRelevancyMetric": {
+        "score": 1.0,
+        "passed": true,
+        "reason": "The score is 1.00 because the actual output perfectly addresses the input question, with no irrelevant statements, demonstrating a complete and accurate response."
+      },
+      "FaithfulnessMetric": {
+        "score": 1.0,
+        "passed": true,
+        "reason": "The score is 1.00 because there are no contradictions found, indicating a perfect alignment between the actual output and the retrieval context, which is absolutely fantastic!"
+      }
+    }
+  }
+]

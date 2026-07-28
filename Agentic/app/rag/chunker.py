@@ -82,6 +82,11 @@ class DocumentChunker:
         all_chunks: list[Document] = []
 
         for doc in documents:
+            # page_number comes from PyPDFLoader as "page" (0-indexed); normalise it
+            page_number = doc.metadata.get("page")
+            if page_number is not None:
+                page_number = int(page_number) + 1  # convert to 1-indexed
+
             # Pass 1: split by markdown headers into sections
             try:
                 sections = self._header_splitter.split_text(doc.page_content)
@@ -92,7 +97,13 @@ class DocumentChunker:
             for section in sections:
                 # Merge file-level metadata with header-level metadata
                 merged_metadata = {**doc.metadata, **section.metadata}
+                if page_number is not None:
+                    merged_metadata["page_number"] = page_number
                 section_chunks = _section_to_chunks(section.page_content, merged_metadata)
                 all_chunks.extend(section_chunks)
+
+        # Stamp each chunk with its global position across the whole document set
+        for idx, chunk in enumerate(all_chunks):
+            chunk.metadata["chunk_index"] = idx
 
         return all_chunks

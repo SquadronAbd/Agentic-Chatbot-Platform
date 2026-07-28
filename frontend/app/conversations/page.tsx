@@ -52,7 +52,7 @@ export default function ConversationsPage() {
     const list = conversations ?? [];
     if (!search.trim()) return list;
     const q = search.toLowerCase();
-    return list.filter((c) => c.title.toLowerCase().includes(q));
+    return list.filter((c) => c.title?.toLowerCase().includes(q));
   }, [conversations, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
