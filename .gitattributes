@@ -1,0 +1,1 @@
+backend/dumps/*.dump filter=lfs diff=lfs merge=lfs -text
