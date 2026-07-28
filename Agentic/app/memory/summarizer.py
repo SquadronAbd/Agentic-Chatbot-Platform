@@ -1,5 +1,7 @@
 from typing import Any
 
+from loguru import logger
+
 from app.models.llm import llm
 from app.memory.conversation import Message
 
@@ -17,21 +19,14 @@ class ConversationSummarizer:
             return content.strip()
 
         if isinstance(content, list):
-
-            output = []
-
-            for part in content:
-
-                if isinstance(part, dict):
-
-                    text = part.get("text")
-
-                    if text:
-                        output.append(text)
-
+            output = [
+                part["text"]
+                for part in content
+                if isinstance(part, dict) and part.get("text")
+            ]
             return "\n".join(output).strip()
 
-        return str(content)
+        raise ValueError(f"Unexpected LLM response content type: {type(content)}")
 
     def summarize(
         self,
@@ -46,24 +41,20 @@ class ConversationSummarizer:
             for m in history
         )
 
-        prompt = f"""
-Summarize the conversation.
+        prompt = (
+            "Summarize the conversation.\n\n"
+            "Requirements:\n"
+            "- Preserve important facts.\n"
+            "- Preserve user goals.\n"
+            "- Preserve user preferences.\n"
+            "- Remove repetition.\n"
+            "- Maximum 150 words.\n\n"
+            f"Conversation:\n\n{conversation}\n\nSummary:"
+        )
 
-Requirements:
-
-- Preserve important facts.
-- Preserve user goals.
-- Preserve user preferences.
-- Remove repetition.
-- Maximum 150 words.
-
-Conversation:
-
-{conversation}
-
-Summary:
-"""
-
-        response = llm.invoke(prompt)
-
-        return self._extract_text(response)
+        try:
+            response = llm.invoke(prompt)
+            return self._extract_text(response)
+        except Exception as e:
+            logger.error(f"Summarization failed: {e}")
+            raise
