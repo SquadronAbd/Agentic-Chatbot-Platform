@@ -55,4 +55,4 @@ backend/.env
 
 # Large SQL backup files (use pg_dump via LFS only)
 backend/financial_rag_backup.sql
-*.sql.gz
+*.sql.gzAgentic/.env
