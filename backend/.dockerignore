@@ -7,4 +7,3 @@ uploads/
 airflow/logs/
 *.egg-info
 .pytest_cache
-alembic/versions/
