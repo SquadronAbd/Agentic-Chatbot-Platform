@@ -100,7 +100,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://backend:8000
+        NEXT_PUBLIC_API_URL: /agentic
         NEXT_PUBLIC_BACKEND_URL: http://localhost/api/v1
     container_name: chatbot_frontend
     restart: unless-stopped

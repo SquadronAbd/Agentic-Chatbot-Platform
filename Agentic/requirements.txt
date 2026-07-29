@@ -21,6 +21,7 @@ pydantic-settings
 pypdf
 python-docx
 unstructured
+markdown
 
 sentence-transformers
 numpy

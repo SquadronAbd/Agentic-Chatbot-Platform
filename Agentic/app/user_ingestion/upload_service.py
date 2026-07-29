@@ -41,13 +41,8 @@ class UploadService:
             f"Starting ingestion of {file_path.name}"
         )
 
-        # Parse uploaded document
-        documents = self.parser.parse(str(file_path))
-
-        # Pass parsed documents into the existing pipeline
-        chunk_count = pipeline.ingest_documents(
-            documents
-        )
+        # Pass the file directly into the existing pipeline
+        chunk_count = pipeline.ingest(str(file_path))
 
         logger.info(
             f"Ingestion complete ({chunk_count} chunks)"
