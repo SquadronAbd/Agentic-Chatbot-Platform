@@ -81,8 +81,7 @@ export function useChatStream(conversationId: string | null) {
     if (finalizeTimerRef.current != null) {
       window.clearTimeout(finalizeTimerRef.current);
     }
-    // Backend WS is an echo placeholder and never sends `[DONE]`. Treat 500ms
-    // of silence as the end of a stream.
+    // Treat 500ms of silence as end-of-stream in case [DONE] is missed.
     finalizeTimerRef.current = window.setTimeout(() => {
       finalizeCurrent();
       finalizeTimerRef.current = null;
@@ -120,9 +119,7 @@ export function useChatStream(conversationId: string | null) {
         if (cancelled) return;
         const raw = typeof event.data === "string" ? event.data : "";
 
-        // Strip the backend's hard-coded echo prefix so downstream UI sees
-        // clean content. `await websocket.send_text(f"echo: {data}")`.
-        const content = raw.startsWith("echo: ") ? raw.slice(6) : raw;
+        const content = raw;
 
         if (!content || content === "\n") {
           scheduleFinalize();
