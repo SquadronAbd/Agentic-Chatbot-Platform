@@ -11,52 +11,22 @@ class MemoryService:
 
         question = question.lower()
 
+        _SENTINEL = "I couldn't answer from conversation memory."
+
         if "summary" in question:
-
             if memory.get_summary():
-
                 return memory.get_summary()
-
-            history = memory.get_history()
-
-            if not history:
-
-                return "No conversation yet."
-
-            return "\n".join(
-
-                f"{m.role}: {m.content}"
-
-                for m in history
-
-            )
+            # No summary yet — let the LLM summarise from history
+            return _SENTINEL
 
         if "who are we talking about" in question:
-
             if memory.get_summary():
-
                 return memory.get_summary()
-
-            return "We are discussing the current conversation."
+            # No summary to extract a subject from — let the LLM answer
+            return _SENTINEL
 
         if "what did i ask" in question:
+            # Too fragile to guess with users[-1] — let the LLM search history
+            return _SENTINEL
 
-            history = memory.get_history()
-
-            users = [
-
-                m.content
-
-                for m in history
-
-                if m.role == "user"
-
-            ]
-
-            if not users:
-
-                return "You haven't asked anything yet."
-
-            return users[-1]
-
-        return "I couldn't answer from conversation memory."
+        return _SENTINEL
