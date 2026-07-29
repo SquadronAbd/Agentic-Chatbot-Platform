@@ -176,7 +176,7 @@ api.interceptors.response.use(
 );
 
 const AI_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL ?? "/agentic";
 
 export interface ChatResponse {
   success: boolean;

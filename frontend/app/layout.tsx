@@ -11,23 +11,27 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--space-grotesk",
   display: "swap",
+  preload: false,
 });
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--plus-jakarta",
   display: "swap",
+  preload: false,
 });
 
 const sora = Sora({
   subsets: ["latin"],
   variable: "--sora",
   display: "swap",
+  preload: false,
 });
 
 const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
+  preload: false,
   variable: "--plex-mono",
   display: "swap",
 });
