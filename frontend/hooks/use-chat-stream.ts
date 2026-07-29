@@ -5,32 +5,16 @@ import type { Message } from "@/lib/types";
 import { useChatStore } from "@/store/chat-store";
 import { useAuthStore } from "@/store/auth-store";
 
-const BACKEND_ABSOLUTE_BASE =
-  (typeof process !== "undefined" && (process.env as { NEXT_PUBLIC_BACKEND_URL?: string })?.NEXT_PUBLIC_BACKEND_URL) ||
-  "http://localhost:8000/api/v1";
 
 function buildWsUrl(token: string, conversationId: string | null): string {
   if (typeof window === "undefined") return "";
-  // Prefer same-host WS (goes through Next.js rewrites to backend) so we
-  // avoid browser SSL/Mixed-Content warnings and bypass CORS on WS upgrade.
+  // Use same-host WS path — nginx proxies /api/v1/chat/stream with proper
+  // Upgrade headers so the browser never needs to know the backend port.
   const browserScheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const sameHost = `${browserScheme}//${window.location.host}/api/v1/chat/stream`;
   const qs = new URLSearchParams();
   qs.set("token", token);
   if (conversationId) qs.set("conversation_id", conversationId);
-  const same = `${sameHost}?${qs.toString()}`;
-  // Fallback to direct backend WS if rewrites don't support upgrade on
-  // self-hosted. Backend URL constructed by http(s) → ws(s) prefix swap.
-  try {
-    const fallback = new URL(BACKEND_ABSOLUTE_BASE);
-    fallback.protocol = fallback.protocol === "https:" ? "wss:" : "ws:";
-    fallback.pathname = `${fallback.pathname.replace(/\/$/, "")}/chat/stream`;
-    fallback.search = `?${qs.toString()}`;
-    void same;
-    return fallback.toString();
-  } catch {
-    return same;
-  }
+  return `${browserScheme}//${window.location.host}/api/v1/chat/stream?${qs.toString()}`;
 }
 
 export function useChatStream(conversationId: string | null) {
