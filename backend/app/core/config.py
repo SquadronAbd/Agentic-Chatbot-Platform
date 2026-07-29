@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    DB_URL: str = "postgresql+asyncpg://postgres:apppass@localhost:5432/chatbot_db"
+    DB_URL: str = "postgresql+asyncpg://postgres:password@localhost:5432/chatbot_db"
     REDIS_URL: str = "redis://localhost:6379/0"
     JWT_SECRET_KEY: str = "temp-secret-change-later"
     JWT_ALGORITHM: str = "HS256"

@@ -5,7 +5,7 @@ import pandas as pd
 from airflow.decorators import dag, task
 
 CHATBOT_DB_URL = (
-    "postgresql://postgres:apppass@host.docker.internal:5432/chatbot_db"
+    "postgresql://postgres:password@pgvector:5432/chatbot_db"
 )
 PARQUET_DIR = "/tmp"
 

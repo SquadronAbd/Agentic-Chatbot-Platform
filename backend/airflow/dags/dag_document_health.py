@@ -6,9 +6,9 @@ from urllib import error, request
 from airflow.decorators import dag, task
 
 CHATBOT_DB_URL = (
-    "postgresql://postgres:apppass@host.docker.internal:5432/chatbot_db"
+    "postgresql://postgres:password@pgvector:5432/chatbot_db"
 )
-BACKEND_API_URL = "http://host.docker.internal:8000/api/v1"
+BACKEND_API_URL = "http://chatbot_backend:8000/api/v1"
 INTERNAL_API_KEY = "change-me-internal-key"
 
 default_args = {
