@@ -101,14 +101,19 @@ def health_check():
     }
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"])
-def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest):
     """
     Process user query via AgentManager and LangGraph workflow.
+    The LangGraph pipeline is synchronous (LLM calls are blocking), so it
+    runs in a thread-pool executor to avoid blocking the event loop.
     """
+    import asyncio
+    from functools import partial
     try:
-        res = rag_service.ask(
-            session_id=request.session_id,
-            question=request.question,
+        loop = asyncio.get_event_loop()
+        res = await loop.run_in_executor(
+            None,
+            partial(rag_service.ask, session_id=request.session_id, question=request.question),
         )
         return res
     except Exception as e:

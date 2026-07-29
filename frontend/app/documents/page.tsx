@@ -322,7 +322,7 @@ export default function DocumentsPage() {
             title="Delete document?"
             description={
               deleteTarget
-                ? `Delete "${deleteTarget.filename}"? This will remove the file and all its chunks from the knowledge base.`
+                ? `Delete "${deleteTarget.filename}"? This will remove the file record. Existing embeddings in the knowledge base are retained.`
                 : ""
             }
             confirmLabel="Delete"

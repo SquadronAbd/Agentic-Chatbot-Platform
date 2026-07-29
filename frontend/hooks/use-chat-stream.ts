@@ -118,6 +118,16 @@ export function useChatStream(conversationId: string | null) {
           return;
         }
 
+        if (content === "[AUTH_EXPIRED]") {
+          finalizeCurrent();
+          setWSStatus("error");
+          // Force re-login — token expired server-side.
+          if (typeof window !== "undefined") {
+            window.location.replace("/login");
+          }
+          return;
+        }
+
         if (!isStreamingRef.current) {
           const id = `m_${Date.now()}`;
           const assistantMessage: Message = {
@@ -175,7 +185,7 @@ export function useChatStream(conversationId: string | null) {
       setWSInstance(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken]);
+  }, [accessToken, conversationId]);
 
   const send = React.useCallback(
     (prompt: string) => {
