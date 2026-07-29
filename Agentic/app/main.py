@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.utils.logger import logger
 from app.config.settings import settings
 from app.rag.rag_service import RAGService
+from app.evaluation.evaluator import RAGEvaluator
 from app.rag.pipeline import pipeline
 from app.rag.bm25_corpus import bm25_corpus
 from app.memory.session import session_manager
@@ -40,6 +41,7 @@ app.add_middleware(
 
 rag_service = RAGService()
 retriever_tool = RetrieverTool()
+rag_evaluator = RAGEvaluator()
 
 # ----------------------------------------------------
 # Pydantic Schemas
@@ -83,6 +85,18 @@ class SearchRequest(BaseModel):
 
 class ClearMemoryRequest(BaseModel):
     session_id: str = Field(..., json_schema_extra={"example":"session-123"})
+
+class EvaluateRequest(BaseModel):
+    query: str = Field(..., json_schema_extra={"example": "What was the revenue in Q3?"})
+    actual_output: str = Field(..., json_schema_extra={"example": "Revenue was $5.2B in Q3 2024."})
+    retrieval_context: List[str] = Field(
+        ..., json_schema_extra={"example": ["Q3 revenue reached $5.2B...", "..."]}
+    )
+    expected_output: Optional[str] = Field(
+        default=None,
+        json_schema_extra={"example": "Revenue in Q3 was $5.2 billion."},
+    )
+    threshold: float = Field(default=0.7, ge=0.0, le=1.0)
 
 # ----------------------------------------------------
 # Endpoints
@@ -275,3 +289,48 @@ def search_documents(request: SearchRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
+
+@app.post("/evaluate", tags=["Evaluation"])
+async def evaluate_rag(request: EvaluateRequest):
+    """
+    Score a single RAG response with five DeepEval metrics using Groq as the LLM judge.
+
+    Always-on metrics (no ground truth needed):
+    - ContextualRelevancy  — are retrieved chunks relevant to the query?
+    - AnswerRelevancy      — does the answer address the question?
+    - Faithfulness         — is every claim grounded in retrieved context?
+
+    Requires expected_output (ground truth):
+    - ContextualPrecision  — are relevant chunks ranked above irrelevant ones?
+    - ContextualRecall     — do chunks cover the expected answer?
+    """
+    import asyncio
+    from functools import partial
+
+    evaluator = RAGEvaluator(threshold=request.threshold)
+    try:
+        loop = asyncio.get_event_loop()
+        results = await loop.run_in_executor(
+            None,
+            partial(
+                evaluator.score,
+                query=request.query,
+                actual_output=request.actual_output,
+                retrieval_context=request.retrieval_context,
+                expected_output=request.expected_output,
+            ),
+        )
+        overall_passed = all(
+            v.get("passed") for v in results.values() if v.get("passed") is not None
+        )
+        return {
+            "success": True,
+            "overall_passed": overall_passed,
+            "threshold": request.threshold,
+            "metrics": results,
+        }
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    except Exception as e:
+        logger.error(f"Evaluation failed: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
