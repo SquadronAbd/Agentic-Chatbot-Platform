@@ -59,7 +59,7 @@ Follow these steps after cloning the repo — no local PostgreSQL install needed
 ## Database credentials (local Docker only — not real secrets)
 
 - User: `postgres`
-- Password: `apppass`
+- Password: `password`
 - Database: `chatbot_db`
 - Port: `5432`
 
