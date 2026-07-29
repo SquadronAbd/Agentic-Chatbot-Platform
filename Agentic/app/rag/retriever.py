@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import re
+import time
 from functools import lru_cache
 
+import psycopg
 from langchain_core.documents import Document
 from loguru import logger
 
+from app.config.settings import settings
 from app.models.vector_store import vector_store
 from app.rag.bm25_corpus import bm25_corpus
 from app.rag.reranker import reranker
 from app.rag.query_transformer import transformer
+from app.rag.retrieval_logger import log_retrieval
 
 
 _RRF_K = 60
@@ -98,6 +102,70 @@ def _dedup_bm25(results: list[tuple[Document, float]]) -> list[tuple[Document, f
     return out
 
 
+def _pg_url() -> str:
+    return settings.DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
+
+
+def _expand_by_page(reranked: list[Document]) -> tuple[list[Document], bool]:
+    """
+    For each reranked chunk that has a page_number, fetch all other chunks
+    from the same source file and page from pgvector. This gives the LLM
+    full page context instead of isolated fragments.
+
+    Only runs when page_number is present (PDFs). Markdown files return as-is.
+    Appends page-expanded chunks after the reranked results, deduplicated.
+    Returns (final_docs, expansion_fired).
+    """
+    seen: set[str] = {doc.page_content for doc in reranked}
+    expanded: list[Document] = []
+
+    pages: set[tuple[str, int]] = set()
+    for doc in reranked:
+        source = doc.metadata.get("source")
+        page_number = doc.metadata.get("page_number")
+        if source and page_number is not None:
+            pages.add((source, int(page_number)))
+
+    if not pages:
+        return reranked, False
+
+    try:
+        with psycopg.connect(_pg_url()) as conn:
+            with conn.cursor() as cur:
+                for source, page_number in pages:
+                    cur.execute("""
+                        SELECT document, cmetadata
+                        FROM langchain_pg_embedding
+                        WHERE page_number = %s
+                          AND cmetadata->>'source' = %s
+                        ORDER BY chunk_index
+                    """, (page_number, source))
+                    for row in cur.fetchall():
+                        text, meta = row[0], row[1]
+                        if text not in seen:
+                            seen.add(text)
+                            expanded.append(Document(page_content=text, metadata=meta or {}))
+    except Exception as exc:
+        logger.warning(f"Page-based expansion failed, skipping: {exc}")
+
+    return reranked + expanded, True
+
+
+def _check_hnsw() -> bool:
+    """Returns True if an HNSW index exists on langchain_pg_embedding."""
+    try:
+        with psycopg.connect(_pg_url()) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 1 FROM pg_indexes
+                    WHERE tablename = 'langchain_pg_embedding'
+                      AND indexdef LIKE '%hnsw%'
+                """)
+                return cur.fetchone() is not None
+    except Exception:
+        return False
+
+
 class HybridRetriever:
     """
     Full retrieval pipeline:
@@ -110,6 +178,7 @@ class HybridRetriever:
                                            whether the query contains specific
                                            financial figures or is conceptual
       5. Cross-encoder re-ranking        — final precision pass
+      6. Page-based context expansion    — pulls full page chunks for PDF results
 
     Degrades gracefully at every step: failed step-back → original query only;
     empty BM25 corpus → semantic only; unavailable re-ranker → RRF order kept.
@@ -133,7 +202,10 @@ class HybridRetriever:
         return self._retrieve(query)
 
     def _retrieve(self, query: str) -> list[Document]:
+        pipeline_warnings: list[str] = []
+
         semantic_weight, bm25_weight = _get_weights(query)
+        query_type = "specific_financial" if _SPECIFIC_FINANCIAL.search(query) else "conceptual"
 
         # --- step-back query (skipped for specific financial queries) ---
         if _SKIP_STEPBACK.search(query):
@@ -144,12 +216,14 @@ class HybridRetriever:
             use_abstract = abstract_query.lower().strip() != query.lower().strip()
 
         # --- semantic search ---
+        t0 = time.perf_counter()
         try:
             original_semantic = vector_store.similarity_search(
                 query=query, k=self.semantic_k
             )
         except Exception as exc:
             logger.error(f"Semantic search failed: {exc}")
+            pipeline_warnings.append(f"Semantic search failed: {exc}")
             original_semantic = []
 
         abstract_semantic: list[Document] = []
@@ -160,21 +234,25 @@ class HybridRetriever:
                 )
             except Exception as exc:
                 logger.warning(f"Abstract semantic search failed: {exc}")
+                pipeline_warnings.append(f"Abstract semantic search failed: {exc}")
 
         semantic_results = _dedup_semantic(original_semantic + abstract_semantic)
+        t_semantic = time.perf_counter() - t0
 
         # --- BM25 search ---
+        t0 = time.perf_counter()
         original_bm25 = bm25_corpus.search(query, k=self.bm25_k)
         abstract_bm25: list[tuple[Document, float]] = []
         if use_abstract:
             abstract_bm25 = bm25_corpus.search(abstract_query, k=self.bm25_k // 2)
-
         bm25_results = _dedup_bm25(original_bm25 + abstract_bm25)
+        t_bm25 = time.perf_counter() - t0
 
         if not semantic_results and not bm25_results:
             return []
 
         # --- weighted RRF merge ---
+        t0 = time.perf_counter()
         if not bm25_results:
             candidates = semantic_results
         elif not semantic_results:
@@ -183,9 +261,45 @@ class HybridRetriever:
             candidates = _rrf_merge(
                 semantic_results, bm25_results, semantic_weight, bm25_weight
             )
+        t_rrf = time.perf_counter() - t0
 
         # --- cross-encoder re-rank ---
-        return reranker.rerank(query, candidates)
+        t0 = time.perf_counter()
+        reranked = reranker.rerank(query, candidates)
+        t_rerank = time.perf_counter() - t0
+
+        # --- page-based context expansion ---
+        t0 = time.perf_counter()
+        final_docs, page_expansion_fired = _expand_by_page(reranked)
+        t_page_expand = time.perf_counter() - t0
+
+        # --- log retrieval ----
+        log_retrieval(
+            t_semantic=t_semantic,
+            t_bm25=t_bm25,
+            t_rrf=t_rrf,
+            t_rerank=t_rerank,
+            t_page_expand=t_page_expand,
+            hnsw_used=_check_hnsw(),
+            candidate_count=len(candidates),
+            top_chunks=[doc.page_content for doc in reranked[:3]],
+            page_expansion_fired=page_expansion_fired,
+            count_before_expansion=len(reranked),
+            count_after_expansion=len(final_docs),
+            original_query=query,
+            abstract_query=abstract_query,
+            use_abstract=use_abstract,
+            semantic_weight=semantic_weight,
+            bm25_weight=bm25_weight,
+            query_type=query_type,
+            count_semantic=len(semantic_results),
+            count_bm25=len(bm25_results),
+            count_rrf=len(candidates),
+            count_reranked=len(reranked),
+            warnings=pipeline_warnings,
+        )
+
+        return final_docs
 
 
 retriever = HybridRetriever()
