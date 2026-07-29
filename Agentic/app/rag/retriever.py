@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 
 from langchain_core.documents import Document
 from loguru import logger
@@ -21,6 +22,18 @@ _SPECIFIC_FINANCIAL = re.compile(
     r"\bQ[1-4]\b|"         # quarters:        Q1, Q3
     r"\bFY\s*\d{2,4}\b|"   # fiscal years:    FY2024, FY23
     r"\b[A-Z]{2,5}\b"      # tickers/acronyms: AAPL, EBITDA, EPS, GAAP
+)
+
+# Queries matching this pattern are specific enough that step-back abstraction
+# won't improve recall — skip the transformer LLM call for these.
+_SKIP_STEPBACK = re.compile(
+    r"\$[\d,.]+|"           # dollar amounts
+    r"\d+\.?\d*\s*%|"      # percentages
+    r"\bQ[1-4]\s*\d{4}\b|" # Q3 2024 style
+    r"\bFY\s*\d{2,4}\b|"   # FY2024
+    r"\b(20\d{2}|19\d{2})\b.*\b(revenue|profit|loss|income|ebitda|eps)\b|"
+    r"\b(revenue|profit|loss|income|ebitda|eps)\b.*\b(20\d{2}|19\d{2})\b",
+    re.I,
 )
 
 
@@ -113,11 +126,22 @@ class HybridRetriever:
         self.final_k = final_k
 
     def retrieve(self, query: str) -> list[Document]:
+        return self._retrieve_cached(query)
+
+    @lru_cache(maxsize=256)
+    def _retrieve_cached(self, query: str) -> list[Document]:
+        return self._retrieve(query)
+
+    def _retrieve(self, query: str) -> list[Document]:
         semantic_weight, bm25_weight = _get_weights(query)
 
-        # --- step-back query ---
-        abstract_query = transformer.transform(query)
-        use_abstract = abstract_query.lower().strip() != query.lower().strip()
+        # --- step-back query (skipped for specific financial queries) ---
+        if _SKIP_STEPBACK.search(query):
+            abstract_query = query
+            use_abstract = False
+        else:
+            abstract_query = transformer.transform(query)
+            use_abstract = abstract_query.lower().strip() != query.lower().strip()
 
         # --- semantic search ---
         try:

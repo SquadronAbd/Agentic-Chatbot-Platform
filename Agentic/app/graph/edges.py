@@ -3,8 +3,11 @@ from app.graph.state import GraphState
 
 def should_reflect(state: GraphState) -> str:
     """
-    Determines whether to route through the Reflection node before finishing.
+    Only reflect when documents were retrieved and intent warrants it.
+    Skips reflection for general/memory queries to save an LLM call.
     """
-    if state.get("answer"):
+    has_docs = bool(state.get("retrieved_documents"))
+    intent = state.get("intent", "general")
+    if state.get("answer") and has_docs and intent in ("document", "planner"):
         return "reflection"
     return "end"

@@ -13,7 +13,7 @@ from app.rag.pipeline import pipeline
 from app.rag.bm25_corpus import bm25_corpus
 from app.memory.session import session_manager
 from app.tools.retriever_tool import RetrieverTool
-from app.maintenance.reindex import reindex_chunks, verify_deletion
+from app.user_ingestion.upload_service import UploadService
 
 
 @asynccontextmanager
@@ -46,8 +46,18 @@ retriever_tool = RetrieverTool()
 # ----------------------------------------------------
 
 class ChatRequest(BaseModel):
-    session_id: str = Field(..., example="session-123")
-    question: str = Field(..., example="What is RAG?")
+    session_id: str = Field(
+    ...,
+    json_schema_extra={
+        "example": "session-123"
+    }
+)
+    question: str = Field(
+    ...,
+    json_schema_extra={
+        "example": "What is RAG?"
+    }
+)
 
 class ChatResponse(BaseModel):
     success: bool
@@ -61,21 +71,18 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
 
 class IngestDirectoryRequest(BaseModel):
-    directory_path: str = Field(..., example="documents")
+    directory_path: str = Field(
+        ..., json_schema_extra={
+        "example":"documents"
+        }
+    )
 
 class SearchRequest(BaseModel):
-    query: str = Field(..., example="semantic search")
+    query: str = Field(..., json_schema_extra={"example":"semantic search"})
     k: int = Field(default=3, ge=1, le=20)
 
 class ClearMemoryRequest(BaseModel):
-    session_id: str = Field(..., example="session-123")
-
-class ReindexRequest(BaseModel):
-    chunk_ids: List[str] = Field(..., example=["uuid1", "uuid2"])
-
-class VerifyDeletionRequest(BaseModel):
-    chunk_ids: List[str] = Field(..., example=["uuid1"])
-    embedding_ids: List[str] = Field(default=[], example=["emb1"])
+    session_id: str = Field(..., json_schema_extra={"example":"session-123"})
 
 # ----------------------------------------------------
 # Endpoints
@@ -114,26 +121,38 @@ def chat_endpoint(request: ChatRequest):
 @app.post("/ingest", tags=["Ingestion"])
 async def ingest_file(file: UploadFile = File(...)):
     """
-    Ingest a single uploaded file (PDF, TXT, MD).
+    Upload and ingest a user document (PDF, TXT, MD)
+    into the RAG knowledge base.
     """
+
     try:
-        upload_dir = "documents"
+
+        upload_dir = "documents/uploads"
         os.makedirs(upload_dir, exist_ok=True)
-        file_path = os.path.join(upload_dir, file.filename)
+
+        file_path = os.path.join(
+            upload_dir,
+            file.filename or "uploaded file",
+        )
 
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            shutil.copyfileobj(
+                file.file,
+                buffer,
+            )
 
-        chunks_added = pipeline.ingest(file_path)
+        upload_service = UploadService()
 
-        return {
-            "success": True,
-            "filename": file.filename,
-            "filepath": file_path,
-            "chunks_added": chunks_added,
-        }
+        result = upload_service.ingest(file_path)
+
+        return result
+
     except Exception as e:
-        logger.error(f"Failed to ingest file {file.filename}: {e}")
+
+        logger.error(
+            f"Failed to ingest file {file.filename}: {e}"
+        )
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to ingest file: {str(e)}",
@@ -221,35 +240,6 @@ def get_documents_info():
         "database": "PostgreSQL (pgvector)",
         "active_sessions": session_manager.total_sessions(),
     }
-
-@app.post("/maintenance/reindex", tags=["Maintenance"])
-def maintenance_reindex(request: ReindexRequest):
-    """
-    Re-generate embeddings for the given chunk IDs in pgvector.
-    Called by the document health DAG.
-    """
-    try:
-        reindexed = reindex_chunks(request.chunk_ids)
-        return {"reindexed": len(reindexed), "chunk_ids": reindexed}
-    except Exception as e:
-        logger.error(f"Reindex failed: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@app.post("/maintenance/verify-deletion", tags=["Maintenance"])
-def maintenance_verify_deletion(request: VerifyDeletionRequest):
-    """
-    Check whether the given chunk IDs have been removed from pgvector.
-    Returns verified (confirmed gone) and pending (still present) lists.
-    Called by the document health DAG.
-    """
-    try:
-        result = verify_deletion(request.chunk_ids, request.embedding_ids)
-        return result
-    except Exception as e:
-        logger.error(f"Verify deletion failed: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
 
 @app.post("/search", tags=["Search"])
 def search_documents(request: SearchRequest):

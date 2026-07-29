@@ -9,7 +9,7 @@ default_args = {
 }
 
 CHATBOT_DB_URL = (
-    "postgresql://postgres:apppass@host.docker.internal:5432/chatbot_db"
+    "postgresql://postgres:apppass@:5432/chatbot_db"
 )
 
 PARQUET_DIR = "/tmp"

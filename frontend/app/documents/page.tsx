@@ -286,7 +286,7 @@ export default function DocumentsPage() {
                               </Badge>
                             </td>
                             <td className="px-5 py-4 text-sm text-secondary">
-                              {formatSize(d.sizeKb)}
+                              {formatSize(d.sizeKb ?? 0)}
                             </td>
                             <td className="px-5 py-4 text-sm text-secondary">
                               {d.chunkCount}

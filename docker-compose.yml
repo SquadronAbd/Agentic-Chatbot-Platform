@@ -140,12 +140,18 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       _PIP_ADDITIONAL_REQUIREMENTS: pandas sqlalchemy psycopg2-binary pyarrow
     entrypoint: /bin/bash
-    command: >
-      -c "airflow db migrate &&
-          airflow users create
-            --username admin --password admin
-            --firstname Admin --lastname User
-            --role Admin --email admin@example.com || true"
+    command:
+      - -c
+      - |
+        airflow db migrate
+
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
 
   airflow-webserver:
     image: apache/airflow:2.10.2

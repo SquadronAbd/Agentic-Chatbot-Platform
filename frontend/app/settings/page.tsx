@@ -179,7 +179,7 @@ function ProfileSection({ user }: {
     name: string;
     email: string;
     role: string;
-    is_active: boolean;
+    is_active?: boolean;
   }
 }) {
   return (
@@ -370,7 +370,7 @@ function ApiKeysSection() {
 
   async function onCreateSubmit(values: ApiKeyValues) {
     try {
-      const resp = await create.mutateAsync(values);
+      const resp = await create.mutateAsync(values as any);
       setNewKey(resp.key);
       toast.success("API key created — copy it now, it will only be shown once.");
       reset();
@@ -651,8 +651,8 @@ function AgentToolsSection() {
   React.useEffect(() => {
     if (editing) {
       setValue("name", editing.name);
-      setValue("description", editing.description);
-      setValue("type", editing.type);
+      setValue("description", editing.description ?? "");
+      setValue("type", editing.type ?? "http");
       setValue("enabled", editing.enabled);
     } else {
       reset();
