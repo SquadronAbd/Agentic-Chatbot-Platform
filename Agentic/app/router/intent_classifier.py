@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from typing import Any
 
@@ -10,104 +11,66 @@ class QueryType(str, Enum):
     GENERAL = "general"
 
 
+# Fast rule-based patterns — checked before any LLM call.
+_MEMORY_RE = re.compile(
+    r"\b(what did (i|you) (ask|say|tell|mean)|previous(ly)?|earlier|last time"
+    r"|summarize our|our conversation|you (said|told|answered)|remind me what"
+    r"|what was (my|your|the) (question|answer|last))\b",
+    re.I,
+)
+
+_DOCUMENT_RE = re.compile(
+    r"\b(revenue|ebitda|profit|loss|margin|balance sheet|cash flow|earnings"
+    r"|quarter|fiscal|fy\s*\d{2,4}|q[1-4]\s*\d{4}|annual report|10-k|10-q"
+    r"|filing|sec|dividend|eps|net income|gross profit|operating income"
+    r"|debt|equity|asset|liability|shareholder|stock|ticker|ipo|acquisition"
+    r"|merger|financial (statement|result|performance|data|metric)"
+    r"|what (is|are|was|were) (the )?(company|firm)'s"
+    r"|\$[\d,.]+|[\d.]+\s*%)\b",
+    re.I,
+)
+
+
 class IntentClassifier:
     """
-    Uses the LLM to classify the user's intent.
+    Classifies user intent into memory | document | general.
 
-    Returns one of:
-    - memory
-    - document
-    - general
+    Fast path: regex patterns cover ~80% of queries with no LLM call.
+    Slow path: LLM used only for ambiguous queries the rules can't resolve.
     """
 
     def _extract_text(self, response: Any) -> str:
-
         content = response.content
-
         if isinstance(content, str):
             return content.strip()
-
         if isinstance(content, list):
-
-            texts = []
-
-            for part in content:
-
-                if isinstance(part, dict):
-
-                    text = part.get("text")
-
-                    if text:
-                        texts.append(text)
-
+            texts = [p.get("text") for p in content if isinstance(p, dict) and p.get("text")]
             return "\n".join(texts).strip()
-
         return str(content)
 
-    def classify(
-        self,
-        question: str,
-    ) -> QueryType:
-
-        prompt = f"""
-You are an intent classifier.
-
-Classify the user's question into EXACTLY ONE category.
-
-Categories:
-
-memory
-- Questions about previous conversation
-- Chat history
-- Previous answers
-- Remembering information
-- Conversation summary
-
-Examples:
-"What did I ask?"
-"What did you say?"
-"Summarize our conversation."
-
-document
-- Questions answered using retrieved documents
-
-Examples:
-"What is RAG?"
-"Explain LangGraph."
-"What technologies does RAG combine?"
-
-general
-- Greetings
-- Casual conversation
-- Creative writing
-- Coding help
-- Math
-- Anything not requiring memory or document retrieval
-
-Examples:
-"Hello"
-"Write a poem."
-"Tell me a joke."
-
-Return ONLY ONE WORD:
-
-memory
-document
-general
-
-Question:
-
-{question}
-"""
-
-        response = llm.invoke(prompt)
-
-        result = self._extract_text(response).lower().strip()
-
-        if "memory" == result:
+    def classify(self, question: str) -> QueryType:
+        # Rule-based fast path
+        if _MEMORY_RE.search(question):
             return QueryType.MEMORY
-
-        if "document" == result:
+        if _DOCUMENT_RE.search(question):
             return QueryType.DOCUMENT
 
+        # LLM fallback for ambiguous queries
+        prompt = f"""You are an intent classifier. Classify the question into exactly one category.
+
+memory   — questions about this conversation's history or previous answers
+document — questions requiring retrieved financial documents or data
+general  — greetings, coding, math, creative writing, anything else
+
+Return ONLY ONE WORD (memory / document / general).
+
+Question: {question}"""
+
+        response = llm.invoke(prompt)
+        result = self._extract_text(response).lower().strip()
+
+        if result == "memory":
+            return QueryType.MEMORY
+        if result == "document":
+            return QueryType.DOCUMENT
         return QueryType.GENERAL

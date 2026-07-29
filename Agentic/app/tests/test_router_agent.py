@@ -1,6 +1,6 @@
-from app.agents.router_agent import RouterAgent
+from app.router.intent_classifier import IntentClassifier
 
-router = RouterAgent()
+classifier = IntentClassifier()
 
 questions = [
     "What company is this report about?",
@@ -9,9 +9,6 @@ questions = [
 ]
 
 for question in questions:
-
     print("=" * 60)
-
     print(question)
-
-    print(router.route(question))
+    print(classifier.classify(question).value)
