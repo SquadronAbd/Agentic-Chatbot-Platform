@@ -7,21 +7,18 @@ import { useAuthStore } from "@/store/auth-store";
 
 
 function buildWsUrl(token: string, conversationId: string | null): string {
-    const backend =
-        process.env.NEXT_PUBLIC_API_URL ||
-        "http://localhost:8000";
-
-    const wsBase = backend.replace(/^http/, "ws");
+    // Use same-origin WebSocket so nginx can proxy /api/v1/chat/stream correctly.
+    // NEXT_PUBLIC_API_URL is the agentic service prefix — not the WS path.
+    const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
+    const host = typeof window !== "undefined" ? window.location.host : "localhost";
 
     const qs = new URLSearchParams();
-
     qs.set("token", token);
-
     if (conversationId) {
         qs.set("conversation_id", conversationId);
     }
 
-    return `${wsBase}/api/v1/chat/stream?${qs.toString()}`;
+    return `${protocol}://${host}/api/v1/chat/stream?${qs.toString()}`;
 }
 
 export function useChatStream(conversationId: string | null) {
