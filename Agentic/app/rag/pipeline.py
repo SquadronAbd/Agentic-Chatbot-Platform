@@ -55,18 +55,25 @@ class Pipeline:
     # Single File
     # ----------------------------
 
-    def ingest(self, filepath: str):
+    def ingest(self, filepath: str, on_stage=None):
+
+        def _notify(stage: str):
+            if on_stage:
+                try:
+                    on_stage(stage)
+                except Exception:
+                    pass
 
         logger.info(f"Loading {filepath}")
-
+        _notify("ingesting")
         documents = self.loader.load(filepath)
-
         documents = self.cleaner.clean(documents)
 
+        _notify("chunking")
         chunks = self.chunker.chunk(documents)
 
         logger.info(f"Adding {len(chunks)} chunks")
-
+        _notify("embedding")
         vector_store.add_documents(chunks)
         bm25_corpus.add(chunks)
         _ensure_columns()

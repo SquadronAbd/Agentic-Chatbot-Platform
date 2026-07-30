@@ -1,8 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Header, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import require_role
+from app.repositories.document_repository import DocumentRepository
 from app.services.document_service import DocumentService
 from app.models.users import User
 from app.schemas.document import DocumentOut
@@ -28,6 +30,20 @@ async def list_documents(
 ):
     service = DocumentService(db)
     return await service.list_for_user(current_user)
+
+
+@router.patch("/internal/{document_id}/status", include_in_schema=False)
+async def internal_update_status(
+    document_id: str,
+    x_internal_key: str = Header(..., alias="X-Internal-Key"),
+    body: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+):
+    if x_internal_key != settings.INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    repo = DocumentRepository(db)
+    await repo.update_status(document_id, body["status"])
+    return {"ok": True}
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

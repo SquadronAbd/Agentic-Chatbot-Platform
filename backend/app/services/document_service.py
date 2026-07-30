@@ -20,11 +20,19 @@ async def _run_ingestion(document_id: str, file_path: str, filename: str) -> Non
     async with AsyncSessionLocal() as db:
         repo = DocumentRepository(db)
         try:
+            callback_url = (
+                f"{settings.BACKEND_INTERNAL_URL}/api/v1/documents/internal/{document_id}/status"
+            )
             async with httpx.AsyncClient(timeout=300) as client:
                 with open(file_path, "rb") as f:
                     response = await client.post(
                         f"{settings.AI_SERVICE_URL}/ingest",
                         files={"file": (filename, f, "application/octet-stream")},
+                        data={
+                            "document_id": document_id,
+                            "callback_url": callback_url,
+                            "internal_key": settings.INTERNAL_API_KEY,
+                        },
                     )
 
             if response.status_code != 200:

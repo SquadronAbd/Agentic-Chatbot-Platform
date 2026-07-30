@@ -2,7 +2,7 @@ import os
 import shutil
 from contextlib import asynccontextmanager
 from typing import List, Optional, Any, Dict
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, status
+from fastapi import FastAPI, Form, UploadFile, File, HTTPException, BackgroundTasks, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -138,7 +138,12 @@ async def chat_endpoint(request: ChatRequest):
         )
 
 @app.post("/ingest", tags=["Ingestion"])
-async def ingest_file(file: UploadFile = File(...)):
+async def ingest_file(
+    file: UploadFile = File(...),
+    document_id: str = Form(None),
+    callback_url: str = Form(None),
+    internal_key: str = Form(None),
+):
     """
     Upload and ingest a user document (PDF, TXT, MD)
     into the RAG knowledge base.
@@ -162,7 +167,12 @@ async def ingest_file(file: UploadFile = File(...)):
 
         upload_service = UploadService()
 
-        result = upload_service.ingest(file_path)
+        result = upload_service.ingest(
+            file_path,
+            document_id=document_id,
+            callback_url=callback_url,
+            internal_key=internal_key,
+        )
 
         return result
 

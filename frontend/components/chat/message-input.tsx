@@ -26,9 +26,21 @@ const SUGGESTIONS = [
   "Explain the pricing model changes",
 ];
 
-type AttachState = "uploading" | "ready" | "error";
+type AttachState = "uploading" | "ingesting" | "chunking" | "embedding" | "ready" | "error";
+
+const STATUS_LABEL: Record<AttachState, string> = {
+  uploading:  "Uploading…",
+  ingesting:  "Ingesting…",
+  chunking:   "Chunking…",
+  embedding:  "Getting embeddings…",
+  ready:      "Ready — send your query!",
+  error:      "Upload failed",
+};
+
+const TERMINAL: AttachState[] = ["ready", "error"];
 
 interface AttachedFile {
+  id?: string;
   name: string;
   state: AttachState;
   chunks?: number;
@@ -49,6 +61,39 @@ export function MessageInput({
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
+
+  // Poll backend until the document reaches a terminal state.
+  React.useEffect(() => {
+    if (!attached?.id || TERMINAL.includes(attached.state)) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const { data } = await api.get<{ id: string; status: string; chunk_count: number }[]>(
+          "/documents"
+        );
+        const doc = data.find((d) => d.id === attached.id);
+        if (!doc) return;
+
+        const backendToState: Record<string, AttachState> = {
+          processing: "uploading",
+          ingesting:  "ingesting",
+          chunking:   "chunking",
+          embedding:  "embedding",
+          ready:      "ready",
+          error:      "error",
+        };
+
+        const next = backendToState[doc.status] ?? "uploading";
+        setAttached((prev) =>
+          prev ? { ...prev, state: next, chunks: doc.chunk_count } : prev
+        );
+      } catch {
+        // ignore poll errors silently
+      }
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [attached?.id, attached?.state]);
 
   React.useEffect(() => {
     const ta = textareaRef.current;
@@ -85,9 +130,11 @@ export function MessageInput({
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+      // Store the doc id so the polling effect can watch live status.
       setAttached({
+        id: data.id,
         name: data.filename ?? file.name,
-        state: "ready",
+        state: "ingesting",
         chunks: data.chunk_count ?? 0,
       });
     } catch (err: unknown) {
@@ -120,29 +167,28 @@ export function MessageInput({
                   transition={{ duration: 0.15 }}
                   className={cn(
                     "flex items-center gap-2 self-start rounded-xl px-3 py-2 text-xs",
-                    attached.state === "uploading" && "bg-iris/10 text-secondary",
-                    attached.state === "ready" && "bg-emerald-500/10 text-emerald-400",
-                    attached.state === "error" && "bg-rose-500/10 text-rose-400",
+                    attached.state === "ready"
+                      ? "bg-emerald-500/10 text-emerald-400"
+                      : attached.state === "error"
+                      ? "bg-rose-500/10 text-rose-400"
+                      : "bg-iris/10 text-secondary",
                   )}
                 >
-                  {attached.state === "uploading" && <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />}
-                  {attached.state === "ready" && <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />}
-                  {attached.state === "error" && <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />}
+                  {attached.state === "ready"
+                    ? <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+                    : attached.state === "error"
+                    ? <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                    : <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
+                  }
                   <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="max-w-[200px] truncate font-mono">
+                  <span className="max-w-[180px] truncate font-mono">
                     {attached.name}
                   </span>
-                  {attached.state === "uploading" && (
-                    <span className="text-secondary">Ingesting…</span>
-                  )}
-                  {attached.state === "ready" && attached.chunks !== undefined && (
-                    <span className="text-emerald-500/70">
-                      {attached.chunks > 0 ? `${attached.chunks} chunks` : "processing…"}
-                    </span>
-                  )}
-                  {attached.state === "error" && (
-                    <span className="truncate">{attached.error}</span>
-                  )}
+                  <span className={cn(
+                    attached.state === "ready" ? "text-emerald-500/70" : "text-secondary/80"
+                  )}>
+                    {attached.state === "error" ? attached.error : STATUS_LABEL[attached.state]}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setAttached(null)}

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     INTERNAL_API_KEY: str = "change-me-internal-key"
 
     AI_SERVICE_URL: str = "http://localhost:8001"
+    BACKEND_INTERNAL_URL: str = "http://chatbot_backend:8000"
 
     class Config:
         env_file = ".env"    
