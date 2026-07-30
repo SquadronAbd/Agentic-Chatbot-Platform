@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Avatar } from "@/components/ui/avatar";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import { useChatStore } from "@/store/chat-store";
 import { useMessages, useCreateConversation, useDeleteConversation, useConversations } from "@/hooks/use-api";
 import { useUIStore } from "@/store/ui-store";
 import { useAuthStore } from "@/store/auth-store";
@@ -56,6 +57,8 @@ export function ChatWindow({ user }: { user: CurrentUser }) {
   }, [messages, apiMessages]);
 
   React.useEffect(() => {
+    // Don't override in-flight streaming messages with a DB refetch.
+    if (useChatStore.getState().isStreaming) return;
     if (apiMessages && apiMessages.length > 0) {
       setMessages(apiMessages);
     }
@@ -73,8 +76,11 @@ export function ChatWindow({ user }: { user: CurrentUser }) {
         const conv = await createConv.mutateAsync({ title: prompt.slice(0, 60) });
         convId = conv.id;
         setActive(conv.id);
-        // small delay to let WS reconnect with the new conversation_id
-        await new Promise((r) => setTimeout(r, 150));
+        // Poll the store directly (avoids stale closure) until WS connects or 2s elapses.
+        for (let i = 0; i < 20; i++) {
+          if (useChatStore.getState().wsStatus === "connected") break;
+          await new Promise((r) => setTimeout(r, 100));
+        }
       } catch {
         toast.error("Could not create conversation");
         return;

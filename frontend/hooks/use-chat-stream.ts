@@ -193,7 +193,10 @@ export function useChatStream(conversationId: string | null) {
 
   const send = React.useCallback(
     (prompt: string) => {
-      if (!wsInstance || wsInstance.readyState !== WebSocket.OPEN) {
+      // Read wsInstance directly from the store so this function is never stale
+      // after a WS reconnect triggered by a conversationId change.
+      const ws = useChatStore.getState().wsInstance;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
         throw new Error("WebSocket not connected");
       }
       const userMessage: Message = {
@@ -209,16 +212,10 @@ export function useChatStream(conversationId: string | null) {
       addMessage(userMessage);
       setLastPrompt(prompt);
       resetStreamingContent();
-      wsInstance.send(prompt);
+      ws.send(prompt);
       isStreamingRef.current = true;
     },
-    [
-      wsInstance,
-      conversationId,
-      addMessage,
-      setLastPrompt,
-      resetStreamingContent,
-    ]
+    [conversationId, addMessage, setLastPrompt, resetStreamingContent]
   );
 
   const stop = React.useCallback(() => {
