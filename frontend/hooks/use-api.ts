@@ -240,6 +240,14 @@ export function useDocuments(
       );
     },
     staleTime: 30_000,
+    // Poll every 3 s while any document is still processing.
+    refetchInterval: (query) => {
+      const items = query.state.data;
+      if (Array.isArray(items) && items.some((d) => d.status === "processing")) {
+        return 3_000;
+      }
+      return false;
+    },
     select: (items) =>
       search
         ? items.filter((d) =>

@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.documents import Document
@@ -8,14 +8,25 @@ class DocumentRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def update_status(
+        self, document_id: str, status: str, chunk_count: int | None = None
+    ) -> None:
+        values: dict = {"status": status}
+        if chunk_count is not None:
+            values["chunk_count"] = chunk_count
+        await self.db.execute(
+            update(Document).where(Document.id == document_id).values(**values)
+        )
+        await self.db.commit()
+
     async def create(
-        self, owner_id: str, filename: str, file_path: str, chunk_count: int = 0
+        self, owner_id: str, filename: str, file_path: str, chunk_count: int = 0, status: str = "processing"
     ) -> Document:
         doc = Document(
             owner_id=owner_id,
             filename=filename,
             file_path=file_path,
-            status="ready",
+            status=status,
             chunk_count=chunk_count,
         )
         self.db.add(doc)

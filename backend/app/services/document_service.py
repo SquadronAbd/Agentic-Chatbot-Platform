@@ -2,22 +2,49 @@ import os
 import uuid
 import httpx
 
-from fastapi import HTTPException, UploadFile, status
+from fastapi import HTTPException, UploadFile, BackgroundTasks, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.document_repository import DocumentRepository
 from app.core.deps import is_privileged
 from app.core.config import settings
+from app.core.database import AsyncSessionLocal
 from app.models.users import User
 from app.models.documents import Document
 
 UPLOAD_DIR = "uploads"
 
+
+async def _run_ingestion(document_id: str, file_path: str, filename: str) -> None:
+    """Background task: call agentic /ingest and update document status."""
+    async with AsyncSessionLocal() as db:
+        repo = DocumentRepository(db)
+        try:
+            async with httpx.AsyncClient(timeout=300) as client:
+                with open(file_path, "rb") as f:
+                    response = await client.post(
+                        f"{settings.AI_SERVICE_URL}/ingest",
+                        files={"file": (filename, f, "application/octet-stream")},
+                    )
+
+            if response.status_code != 200:
+                await repo.update_status(document_id, "error")
+                return
+
+            chunk_count = response.json().get("chunks", 0)
+            await repo.update_status(document_id, "ready", chunk_count=chunk_count)
+
+        except Exception:
+            await repo.update_status(document_id, "error")
+
+
 class DocumentService:
     def __init__(self, db: AsyncSession):
         self.repo = DocumentRepository(db)
 
-    async def upload(self, current_user: User, file: UploadFile) -> Document:
+    async def upload(
+        self, current_user: User, file: UploadFile, background_tasks: BackgroundTasks
+    ) -> Document:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         filename = file.filename or "untitled"
         safe_name = f"{uuid.uuid4()}_{filename}"
@@ -27,42 +54,21 @@ class DocumentService:
         with open(file_path, "wb") as f:
             f.write(contents)
 
-        try:
-            async with httpx.AsyncClient(timeout=300) as client:
-                with open(file_path, "rb") as uploaded_file:
-                    response = await client.post(
-                        f"{settings.AI_SERVICE_URL}/ingest",
-                        files={
-                            "file": (
-                                filename,
-                                uploaded_file,
-                                file.content_type,
-                            )
-                        },
-                    )
-
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"AI ingestion failed: {response.text}",
-                )
-
-            ingest_result = response.json()
-            print(f"\n===== AI INGESTION =====\n{ingest_result}\n========================\n")
-
-        except httpx.RequestError as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unable to connect to AI Module: {str(e)}",
-            )
-
-        chunk_count = ingest_result.get("chunks", 0)
-        return await self.repo.create(
+        # Save record immediately with status "processing" so the UI can show progress.
+        doc = await self.repo.create(
             str(current_user.id),
             filename,
             file_path,
-            chunk_count=chunk_count,
+            chunk_count=0,
+            status="processing",
         )
+
+        # Run the heavy agentic ingestion in the background.
+        background_tasks.add_task(
+            _run_ingestion, str(doc.id), file_path, filename
+        )
+
+        return doc
 
     async def list_for_user(self, current_user: User) -> list[Document]:
         if is_privileged(current_user):
@@ -84,8 +90,6 @@ class DocumentService:
                 detail="Not your document",
             )
 
-        # doc.file_path may be a SQLAlchemy Column type in some typing contexts;
-        # use getattr to safely retrieve the runtime value and guard its type.
         path = getattr(doc, "file_path", None)
         if path and isinstance(path, (str, bytes)) and os.path.exists(path):
             os.remove(path)
