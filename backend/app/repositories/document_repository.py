@@ -8,8 +8,16 @@ class DocumentRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def create(self, owner_id: str, filename: str, file_path: str) -> Document:
-        doc = Document(owner_id=owner_id, filename=filename, file_path=file_path, status="pending")
+    async def create(
+        self, owner_id: str, filename: str, file_path: str, chunk_count: int = 0
+    ) -> Document:
+        doc = Document(
+            owner_id=owner_id,
+            filename=filename,
+            file_path=file_path,
+            status="ready",
+            chunk_count=chunk_count,
+        )
         self.db.add(doc)
         await self.db.commit()
         await self.db.refresh(doc)

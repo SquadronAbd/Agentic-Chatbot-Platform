@@ -47,7 +47,8 @@ class DocumentService:
                     detail=f"AI ingestion failed: {response.text}",
                 )
 
-            print(f"\n===== AI INGESTION =====\n{response.json()}\n========================\n")
+            ingest_result = response.json()
+            print(f"\n===== AI INGESTION =====\n{ingest_result}\n========================\n")
 
         except httpx.RequestError as e:
             raise HTTPException(
@@ -55,10 +56,12 @@ class DocumentService:
                 detail=f"Unable to connect to AI Module: {str(e)}",
             )
 
+        chunk_count = ingest_result.get("chunks", 0)
         return await self.repo.create(
             str(current_user.id),
             filename,
             file_path,
+            chunk_count=chunk_count,
         )
 
     async def list_for_user(self, current_user: User) -> list[Document]:
