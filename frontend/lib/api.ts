@@ -44,6 +44,9 @@ export function clearAuthStorage(): void {
   localStorage.removeItem(STORAGE_KEYS.ACCESS);
   localStorage.removeItem(STORAGE_KEYS.REFRESH);
   localStorage.removeItem(STORAGE_KEYS.USER);
+  // Clear zustand persist snapshots so a new user starts from a clean slate.
+  localStorage.removeItem("auth-storage");
+  localStorage.removeItem("ui-storage");
 }
 
 let isRefreshing = false;

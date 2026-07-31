@@ -53,7 +53,9 @@ export const useUIStore = create<UIState>()(
       partialize: (state) => ({
         theme: state.theme,
         sidebarCollapsed: state.sidebarCollapsed,
-        activeConversationId: state.activeConversationId,
+        // activeConversationId is NOT persisted — it belongs to a session,
+        // not a user. Persisting it caused stale conversation IDs to appear
+        // after logout or after messages were sent with conversationId=null.
       }),
     }
   )

@@ -29,6 +29,16 @@ export function ChatWindow({ user }: { user: CurrentUser }) {
   const createConv = useCreateConversation();
   const deleteConv = useDeleteConversation();
 
+  // Auto-select the most recent conversation when the page loads with no active one.
+  React.useEffect(() => {
+    if (!activeConversationId && convs && convs.length > 0) {
+      const sorted = [...convs].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+      setActive(sorted[0].id);
+    }
+  }, [convs, activeConversationId, setActive]);
+
   const activeTitle = React.useMemo(() => {
     if (!activeConversationId) return "New chat";
     return convs?.find((c) => c.id === activeConversationId)?.title ?? "Chat";
