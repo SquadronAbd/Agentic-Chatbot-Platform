@@ -6,19 +6,12 @@ import { useChatStore } from "@/store/chat-store";
 import { useAuthStore } from "@/store/auth-store";
 
 
-function buildWsUrl(token: string, conversationId: string | null): string {
-    // Use same-origin WebSocket so nginx can proxy /api/v1/chat/stream correctly.
-    // NEXT_PUBLIC_API_URL is the agentic service prefix — not the WS path.
+function buildWsUrl(token: string): string {
+    // conversationId is NOT in the URL — it travels with each message as JSON.
+    // This keeps the WS stable across conversation switches and avoids reconnect storms.
     const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
     const host = typeof window !== "undefined" ? window.location.host : "localhost";
-
-    const qs = new URLSearchParams();
-    qs.set("token", token);
-    if (conversationId) {
-        qs.set("conversation_id", conversationId);
-    }
-
-    return `${protocol}://${host}/api/v1/chat/stream?${qs.toString()}`;
+    return `${protocol}://${host}/api/v1/chat/stream?token=${encodeURIComponent(token)}`;
 }
 
 export function useChatStream(conversationId: string | null) {
@@ -87,7 +80,7 @@ export function useChatStream(conversationId: string | null) {
     function connect() {
       try {
         const token = accessToken ?? "";
-        const url = buildWsUrl(token, conversationId);
+        const url = buildWsUrl(token);
         ws = new WebSocket(url);
       } catch {
         setWSStatus("error");
@@ -188,8 +181,10 @@ export function useChatStream(conversationId: string | null) {
       disconnect();
       setWSInstance(null);
     };
+    // conversationId intentionally excluded — it travels with each message as JSON.
+    // Including it here caused a reconnect storm whenever the active conversation changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, conversationId]);
+  }, [accessToken]);
 
   const send = React.useCallback(
     (prompt: string) => {
@@ -212,7 +207,9 @@ export function useChatStream(conversationId: string | null) {
       addMessage(userMessage);
       setLastPrompt(prompt);
       resetStreamingContent();
-      ws.send(prompt);
+      // Send as JSON so the backend can associate this message with the
+      // correct conversation without needing to reconnect the WebSocket.
+      ws.send(JSON.stringify({ question: prompt, conversation_id: conversationId ?? null }));
       isStreamingRef.current = true;
     },
     [conversationId, addMessage, setLastPrompt, resetStreamingContent]

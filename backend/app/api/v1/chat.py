@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 
 import httpx
@@ -86,14 +87,26 @@ async def chat_stream(
                     return
                 last_token_check = now
 
-            question = await websocket.receive_text()
+            raw = await websocket.receive_text()
 
-            if question.strip() == "[STOP]":
+            if raw.strip() == "[STOP]":
                 await websocket.send_text("[DONE]")
                 continue
 
-            if conversation_id:
-                await msg_repo.create(conversation_id, "user", question)
+            # Accept either plain text or JSON {question, conversation_id}.
+            # JSON lets the client pass a per-message conversation_id so the
+            # WebSocket doesn't need to reconnect every time the active chat changes.
+            msg_conv_id = conversation_id
+            question = raw
+            try:
+                payload = json.loads(raw)
+                question = payload.get("question", raw)
+                msg_conv_id = payload.get("conversation_id") or conversation_id
+            except (json.JSONDecodeError, AttributeError):
+                pass
+
+            if msg_conv_id:
+                await msg_repo.create(msg_conv_id, "user", question)
 
             try:
                 result = await _call_agentic(session_id, question)
@@ -103,8 +116,8 @@ async def chat_stream(
             except httpx.RequestError:
                 answer = "Could not reach the AI service. Please check that it is running."
 
-            if conversation_id:
-                await msg_repo.create(conversation_id, "assistant", answer)
+            if msg_conv_id:
+                await msg_repo.create(msg_conv_id, "assistant", answer)
 
             await _stream_answer(websocket, answer)
 
