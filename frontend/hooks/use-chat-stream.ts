@@ -78,6 +78,7 @@ export function useChatStream(conversationId: string | null) {
     let ws: WebSocket | undefined;
 
     function connect() {
+      connectedOnceRef.current = false;
       try {
         const token = accessToken ?? "";
         const url = buildWsUrl(token);
@@ -151,7 +152,7 @@ export function useChatStream(conversationId: string | null) {
         setWSStatus("error");
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event: CloseEvent) => {
         if (cancelled) return;
         setWSStatus("disconnected");
         // Finalize any pending stream on unexpected close.
@@ -163,6 +164,14 @@ export function useChatStream(conversationId: string | null) {
           }
         }
         if (manuallyOpenRef.current && !cancelled) {
+          // If the connection was rejected before it ever opened (code 1006 = abnormal
+          // closure, e.g. HTTP 403 from an expired token) don't loop — redirect to login.
+          if (!connectedOnceRef.current && event.code === 1006) {
+            if (typeof window !== "undefined") {
+              window.location.replace("/login");
+            }
+            return;
+          }
           window.setTimeout(connect, 1500);
         }
       };
@@ -210,7 +219,6 @@ export function useChatStream(conversationId: string | null) {
       // Send as JSON so the backend can associate this message with the
       // correct conversation without needing to reconnect the WebSocket.
       ws.send(JSON.stringify({ question: prompt, conversation_id: conversationId ?? null }));
-      isStreamingRef.current = true;
     },
     [conversationId, addMessage, setLastPrompt, resetStreamingContent]
   );

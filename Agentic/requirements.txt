@@ -28,6 +28,7 @@ numpy
 pandas
 
 rank-bm25
+redis
 
 deepeval
 

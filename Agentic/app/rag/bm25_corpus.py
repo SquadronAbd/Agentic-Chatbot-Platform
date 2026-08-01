@@ -78,6 +78,15 @@ class BM25Corpus:
         except Exception as exc:
             logger.warning(f"BM25 bootstrap skipped — hybrid search degraded to semantic-only: {exc}")
 
+    def remove_by_source(self, source: str) -> int:
+        """Remove all chunks whose metadata['source'] matches source and rebuild index."""
+        before = len(self._documents)
+        self._documents = [d for d in self._documents if d.metadata.get("source") != source]
+        removed = before - len(self._documents)
+        if removed:
+            self._rebuild()
+        return removed
+
     def _rebuild(self) -> None:
         tokenized = [doc.page_content.lower().split() for doc in self._documents]
         self._bm25 = BM25Okapi(tokenized)

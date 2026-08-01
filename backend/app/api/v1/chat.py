@@ -1,10 +1,13 @@
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -59,13 +62,13 @@ async def chat_stream(
     db: AsyncSession = Depends(get_db),
 ):
     # --- Initial auth ---
-    payload = decode_token(token)
-    if payload is None or payload.get("type") != "access":
+    jwt_payload = decode_token(token)
+    if jwt_payload is None or jwt_payload.get("type") != "access":
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
     repo = UserRepository(db)
-    user = await repo.get_by_id(payload.get("sub"))
+    user = await repo.get_by_id(jwt_payload.get("sub"))
     if user is None or not user.is_active:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
@@ -75,19 +78,21 @@ async def chat_stream(
     last_token_check = datetime.now(timezone.utc).timestamp()
 
     await websocket.accept()
+    logger.info("WS accepted for user=%s conv=%s", user.id, conversation_id)
 
     try:
         while True:
             # Re-validate token periodically so expired sessions are closed.
             now = datetime.now(timezone.utc).timestamp()
             if now - last_token_check >= _TOKEN_RECHECK_INTERVAL:
-                if _token_expired(payload):
+                if _token_expired(jwt_payload):
                     await websocket.send_text("[AUTH_EXPIRED]")
                     await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                     return
                 last_token_check = now
 
             raw = await websocket.receive_text()
+            logger.info("WS message received (%d bytes)", len(raw))
 
             if raw.strip() == "[STOP]":
                 await websocket.send_text("[DONE]")
@@ -99,27 +104,42 @@ async def chat_stream(
             msg_conv_id = conversation_id
             question = raw
             try:
-                payload = json.loads(raw)
-                question = payload.get("question", raw)
-                msg_conv_id = payload.get("conversation_id") or conversation_id
+                msg_payload = json.loads(raw)
+                question = msg_payload.get("question", raw)
+                msg_conv_id = msg_payload.get("conversation_id") or conversation_id
             except (json.JSONDecodeError, AttributeError):
                 pass
 
+            logger.info("WS question=%r conv=%s", question[:80], msg_conv_id)
+
             if msg_conv_id:
-                await msg_repo.create(msg_conv_id, "user", question)
+                try:
+                    await msg_repo.create(msg_conv_id, "user", question)
+                except Exception as db_err:
+                    logger.error("DB error saving user message: %s", db_err)
 
             try:
                 result = await _call_agentic(session_id, question)
                 answer = result.get("answer") or "I was unable to generate a response."
             except httpx.HTTPStatusError as exc:
+                logger.error("Agentic HTTP error %s: %s", exc.response.status_code, exc.response.text)
                 answer = f"AI service error ({exc.response.status_code}). Please try again."
-            except httpx.RequestError:
+            except httpx.RequestError as req_err:
+                logger.error("Agentic request error: %s", req_err)
                 answer = "Could not reach the AI service. Please check that it is running."
+            except Exception as exc:
+                logger.error("Unexpected error calling agentic: %s", exc)
+                answer = "An unexpected error occurred. Please try again."
 
             if msg_conv_id:
-                await msg_repo.create(msg_conv_id, "assistant", answer)
+                try:
+                    await msg_repo.create(msg_conv_id, "assistant", answer)
+                except Exception as db_err:
+                    logger.error("DB error saving assistant message: %s", db_err)
 
             await _stream_answer(websocket, answer)
 
     except WebSocketDisconnect:
-        pass
+        logger.info("WS disconnected for user=%s", user.id)
+    except Exception as exc:
+        logger.error("Unhandled WS error for user=%s: %s", user.id, exc)

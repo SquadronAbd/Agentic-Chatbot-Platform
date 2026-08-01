@@ -6,6 +6,12 @@ from fastapi import FastAPI, Form, UploadFile, File, HTTPException, BackgroundTa
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+# Global LLM response cache — identical prompts are served from disk instantly,
+# avoiding redundant Groq API calls for repeated questions across sessions.
+from langchain_community.cache import SQLiteCache
+from langchain_core.globals import set_llm_cache
+set_llm_cache(SQLiteCache(database_path="/tmp/llm_cache.db"))
+
 from app.utils.logger import logger
 from app.config.settings import settings
 from app.rag.rag_service import RAGService
@@ -118,17 +124,10 @@ def health_check():
 async def chat_endpoint(request: ChatRequest):
     """
     Process user query via AgentManager and LangGraph workflow.
-    The LangGraph pipeline is synchronous (LLM calls are blocking), so it
-    runs in a thread-pool executor to avoid blocking the event loop.
+    All LLM calls are async (ainvoke) so this awaits directly without a thread executor.
     """
-    import asyncio
-    from functools import partial
     try:
-        loop = asyncio.get_event_loop()
-        res = await loop.run_in_executor(
-            None,
-            partial(rag_service.ask, session_id=request.session_id, question=request.question),
-        )
+        res = await rag_service.ask(session_id=request.session_id, question=request.question)
         return res
     except Exception as e:
         logger.error(f"Error processing chat request: {e}")
@@ -139,53 +138,46 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.post("/ingest", tags=["Ingestion"])
 async def ingest_file(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     document_id: str = Form(None),
     callback_url: str = Form(None),
     internal_key: str = Form(None),
 ):
     """
-    Upload and ingest a user document (PDF, TXT, MD)
-    into the RAG knowledge base.
+    Upload and ingest a user document (PDF, TXT, MD) into the RAG knowledge base.
+    Returns immediately with {"accepted": true}; ingestion runs in the background.
+    The caller is notified of completion (and chunk count) via callback_url.
     """
-
     try:
-
         upload_dir = "documents/uploads"
         os.makedirs(upload_dir, exist_ok=True)
 
-        file_path = os.path.join(
-            upload_dir,
-            file.filename or "uploaded file",
-        )
+        filename = file.filename or "uploaded_file"
+        file_path = os.path.join(upload_dir, filename)
 
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(
-                file.file,
-                buffer,
-            )
+            shutil.copyfileobj(file.file, buffer)
 
-        upload_service = UploadService()
+    except Exception as e:
+        logger.error(f"Failed to save uploaded file {file.filename}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save file: {str(e)}",
+        )
 
-        result = upload_service.ingest(
+    def _run():
+        svc = UploadService()
+        svc.ingest(
             file_path,
             document_id=document_id,
             callback_url=callback_url,
             internal_key=internal_key,
         )
 
-        return result
+    background_tasks.add_task(_run)
 
-    except Exception as e:
-
-        logger.error(
-            f"Failed to ingest file {file.filename}: {e}"
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to ingest file: {str(e)}",
-        )
+    return {"accepted": True, "filename": filename}
 
 @app.post("/ingest-directory", tags=["Ingestion"])
 def ingest_directory(request: IngestDirectoryRequest):

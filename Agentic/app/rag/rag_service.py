@@ -17,17 +17,17 @@ class RAGService:
         self.summary_threshold = summary_threshold
         self.recent_messages = recent_messages
 
-    def _summarize_if_needed(self, memory) -> None:
+    async def _summarize_if_needed(self, memory) -> None:
         if memory.message_count() < self.summary_threshold:
             return
-        summary = self.summarizer.summarize(memory.get_history())
+        summary = await self.summarizer.summarize(memory.get_history())
         recent = memory.last_messages(self.recent_messages)
         memory.replace_history(summary=summary, recent_messages=recent)
 
-    def ask(self, session_id: str, question: str) -> Dict[str, Any]:
+    async def ask(self, session_id: str, question: str) -> Dict[str, Any]:
         try:
             memory = self.session_manager.get_memory(session_id)
-            self._summarize_if_needed(memory)
+            await self._summarize_if_needed(memory)
 
             initial_state = {
                 "session_id": session_id,
@@ -44,7 +44,7 @@ class RAGService:
                 "memory": memory,
             }
 
-            result = graph.invoke(initial_state)
+            result = await graph.ainvoke(initial_state)
 
             answer = result.get("answer", "")
             documents = result.get("retrieved_documents", result.get("documents", []))
@@ -64,6 +64,8 @@ class RAGService:
             if answer:
                 memory.add_user_message(question)
                 memory.add_ai_message(answer)
+                # Persist updated memory back to Redis
+                self.session_manager.save_memory(session_id, memory)
 
             return {
                 "success": True,

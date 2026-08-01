@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Optional
 
 from app.models.llm import llm
@@ -47,12 +48,13 @@ class DocumentAgent:
 
         return str(content)
 
-    def answer(
+    async def answer(
         self,
         question: str,
         memory=None,
     ) -> dict:
-        search_result = self.retriever_tool.search(question)
+        # Retrieval is sync (psycopg + BM25); run in thread to avoid blocking event loop
+        search_result = await asyncio.to_thread(self.retriever_tool.search, question)
         documents = search_result.get("documents", [])
 
         history = "" if memory is None else memory.get_history()
@@ -65,7 +67,7 @@ class DocumentAgent:
             summary=summary,
         )
 
-        response = llm.invoke(prompt)
+        response = await llm.ainvoke(prompt)
         answer = self._extract_text(response)
 
         sources = []

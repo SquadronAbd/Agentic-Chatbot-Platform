@@ -48,8 +48,8 @@ class IntentClassifier:
             return "\n".join(texts).strip()
         return str(content)
 
-    def classify(self, question: str) -> QueryType:
-        # Rule-based fast path
+    async def classify(self, question: str) -> QueryType:
+        # Rule-based fast path — no LLM call needed for ~80% of queries
         if _MEMORY_RE.search(question):
             return QueryType.MEMORY
         if _DOCUMENT_RE.search(question):
@@ -66,7 +66,7 @@ Return ONLY ONE WORD (memory / document / general).
 
 Question: {question}"""
 
-        response = llm.invoke(prompt)
+        response = await llm.ainvoke(prompt)
         result = self._extract_text(response).lower().strip()
 
         if result == "memory":

@@ -24,10 +24,10 @@ class GeneralAgent:
             return content.strip()
         return str(content)
 
-    def answer(self, question: str, memory=None) -> str:
+    async def answer(self, question: str, memory=None) -> str:
         q_lower = question.lower().strip()
 
-        # Memory recall — try rule-based history lookup first
+        # Memory recall — try rule-based history lookup first (no LLM needed)
         if memory is not None:
             tool_ans = self.memory_tool.answer_from_memory(question, memory)
             if tool_ans and tool_ans != "I couldn't answer from conversation memory.":
@@ -62,8 +62,8 @@ Recent Conversation:
 Question: {question}
 
 Answer:"""
-                response = llm.invoke(prompt)
+                response = await llm.ainvoke(prompt)
                 return self._extract_text(response)
 
-        response = llm.invoke(question)
+        response = await llm.ainvoke(question)
         return self._extract_text(response)

@@ -36,13 +36,22 @@ class UploadService:
     def __init__(self):
         self.parser = DocumentParser()
 
-    def _notify(self, callback_url: str | None, internal_key: str | None, status: str) -> None:
+    def _notify(
+        self,
+        callback_url: str | None,
+        internal_key: str | None,
+        status: str,
+        chunk_count: int | None = None,
+    ) -> None:
         if not callback_url:
             return
+        payload: dict = {"status": status}
+        if chunk_count is not None:
+            payload["chunk_count"] = chunk_count
         try:
             httpx.post(
                 callback_url,
-                json={"status": status},
+                json=payload,
                 headers={"X-Internal-Key": internal_key or ""},
                 timeout=5,
             )
@@ -63,9 +72,16 @@ class UploadService:
 
         notify = lambda s: self._notify(callback_url, internal_key, s)
 
-        chunk_count = pipeline.ingest(str(file_path), on_stage=notify)
+        try:
+            chunk_count = pipeline.ingest(str(file_path), on_stage=notify)
+        except Exception as exc:
+            logger.error(f"Ingestion failed for {file_path.name}: {exc}")
+            self._notify(callback_url, internal_key, "error")
+            raise
 
         logger.info(f"Ingestion complete ({chunk_count} chunks)")
+        # Signal completion so the backend can mark the document as ready.
+        self._notify(callback_url, internal_key, "ready", chunk_count=chunk_count)
 
         return {
             "success": True,

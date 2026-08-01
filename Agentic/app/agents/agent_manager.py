@@ -29,7 +29,7 @@ class AgentManager:
         self.planner = PlannerAgent(self.tool_manager, self.document, self.general)
         self.reflection = ReflectionAgent()
 
-    def ask(
+    async def ask(
         self,
         question: str,
         memory: Optional[Any] = None,
@@ -37,29 +37,29 @@ class AgentManager:
         use_reflection: bool = True,
     ) -> Dict[str, Any]:
         if intent is None:
-            intent = self._classifier.classify(question).value
+            intent = (await self._classifier.classify(question)).value
 
         documents: list = []
         sources: list = []
 
         if intent == "planner":
-            result = self.planner.plan_and_execute(question, memory)
+            result = await self.planner.plan_and_execute(question, memory)
             draft_answer = result["answer"]
             documents = result.get("documents", [])
             sources = result.get("sources", [])
 
         elif intent == "document":
-            result = self.document.answer(question=question, memory=memory)
+            result = await self.document.answer(question=question, memory=memory)
             draft_answer = result["answer"]
             documents = result.get("documents", [])
             sources = result.get("sources", [])
 
         else:
             # Handles both "memory" and "general" intents
-            draft_answer = self.general.answer(question=question, memory=memory)
+            draft_answer = await self.general.answer(question=question, memory=memory)
 
         if use_reflection and draft_answer and documents:
-            final_answer = self.reflection.reflect(
+            final_answer = await self.reflection.reflect(
                 question=question,
                 answer=draft_answer,
                 documents=documents,

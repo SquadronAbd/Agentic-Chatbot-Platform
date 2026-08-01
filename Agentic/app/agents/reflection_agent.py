@@ -15,7 +15,7 @@ class ReflectionAgent:
             return content.strip()
         return str(content)
 
-    def reflect(
+    async def reflect(
         self,
         question: str,
         answer: str,
@@ -56,7 +56,7 @@ Draft Answer:
 
 Improved Answer:
 """
-        response = llm.invoke(prompt)
+        response = await llm.ainvoke(prompt)
         improved = self._extract_text(response)
 
         return improved if improved else answer

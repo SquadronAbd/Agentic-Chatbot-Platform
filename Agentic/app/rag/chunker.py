@@ -15,12 +15,15 @@ _TABLE_BLOCK = re.compile(r"(\|.+\|[ \t]*\n)+", re.MULTILINE)
 
 _CHUNK_SIZE = 1000
 _CHUNK_OVERLAP = 150
+_MIN_CHUNK_CHARS = 60  # discard chunks shorter than this — usually noise
 
-# Splitter for non-table prose within a section
+# Splitter for non-table prose within a section.
+# Sentence-boundary separators (". ", "? ", "! ") come before word breaks
+# so chunks end at natural sentence boundaries whenever possible.
 _PROSE_SPLITTER = RecursiveCharacterTextSplitter(
     chunk_size=_CHUNK_SIZE,
     chunk_overlap=_CHUNK_OVERLAP,
-    separators=["\n\n", "\n", ". ", " ", ""],
+    separators=["\n\n", "\n", ". ", "? ", "! ", " ", ""],
 )
 
 
@@ -87,12 +90,22 @@ class DocumentChunker:
             if page_number is not None:
                 page_number = int(page_number) + 1  # convert to 1-indexed
 
+            content = doc.page_content
+
+            # Adaptive short-page bypass: if a PDF page (or any document) is already
+            # well under the chunk size, keep it whole instead of splitting needlessly.
+            if len(content) <= _CHUNK_SIZE and page_number is not None:
+                merged_metadata = {**doc.metadata, "page_number": page_number}
+                if len(content.strip()) >= _MIN_CHUNK_CHARS:
+                    all_chunks.append(Document(page_content=content, metadata=merged_metadata))
+                continue
+
             # Pass 1: split by markdown headers into sections
             try:
-                sections = self._header_splitter.split_text(doc.page_content)
+                sections = self._header_splitter.split_text(content)
             except Exception:
                 # Fallback for non-markdown or malformed content
-                sections = [Document(page_content=doc.page_content, metadata={})]
+                sections = [Document(page_content=content, metadata={})]
 
             for section in sections:
                 # Merge file-level metadata with header-level metadata
@@ -100,7 +113,10 @@ class DocumentChunker:
                 if page_number is not None:
                     merged_metadata["page_number"] = page_number
                 section_chunks = _section_to_chunks(section.page_content, merged_metadata)
-                all_chunks.extend(section_chunks)
+                # Drop noise chunks (very short fragments that carry no signal)
+                all_chunks.extend(
+                    c for c in section_chunks if len(c.page_content.strip()) >= _MIN_CHUNK_CHARS
+                )
 
         # Stamp each chunk with its global position across the whole document set
         for idx, chunk in enumerate(all_chunks):

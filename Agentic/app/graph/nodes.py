@@ -28,18 +28,18 @@ class GraphNodes:
         state.setdefault("metadata", {})
         return state
 
-    def classify_intent(self, state: GraphState) -> GraphState:
+    async def classify_intent(self, state: GraphState) -> GraphState:
         question = state.get("question", "")
         if any(kw in question.lower() for kw in _PLANNER_KEYWORDS):
             intent = "planner"
         else:
-            intent = self.intent_classifier.classify(question).value
+            intent = (await self.intent_classifier.classify(question)).value
         state["intent"] = intent
         state["agent"] = intent
         return state
 
-    def agent_node(self, state: GraphState) -> GraphState:
-        result = self.agent_manager.ask(
+    async def agent_node(self, state: GraphState) -> GraphState:
+        result = await self.agent_manager.ask(
             question=state.get("question", ""),
             memory=state.get("memory"),
             intent=state.get("intent", "general"),
@@ -53,10 +53,10 @@ class GraphNodes:
             state.setdefault("metadata", {})["plan"] = result["plan"]
         return state
 
-    def reflection_node(self, state: GraphState) -> GraphState:
+    async def reflection_node(self, state: GraphState) -> GraphState:
         draft = state.get("answer", "")
         if draft:
-            state["answer"] = self.agent_manager.reflection.reflect(
+            state["answer"] = await self.agent_manager.reflection.reflect(
                 question=state.get("question", ""),
                 answer=draft,
                 documents=state.get("retrieved_documents", []),

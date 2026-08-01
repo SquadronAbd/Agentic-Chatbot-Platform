@@ -28,7 +28,7 @@ class ConversationSummarizer:
 
         raise ValueError(f"Unexpected LLM response content type: {type(content)}")
 
-    def summarize(
+    async def summarize(
         self,
         history: list[Message],
     ) -> str:
@@ -53,7 +53,7 @@ class ConversationSummarizer:
         )
 
         try:
-            response = llm.invoke(prompt)
+            response = await llm.ainvoke(prompt)
             return self._extract_text(response)
         except Exception as e:
             logger.error(f"Summarization failed: {e}")

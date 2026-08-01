@@ -42,7 +42,7 @@ async def internal_update_status(
     if x_internal_key != settings.INTERNAL_API_KEY:
         raise HTTPException(status_code=403, detail="Forbidden")
     repo = DocumentRepository(db)
-    await repo.update_status(document_id, body["status"])
+    await repo.update_status(document_id, body["status"], chunk_count=body.get("chunk_count"))
     return {"ok": True}
 
 

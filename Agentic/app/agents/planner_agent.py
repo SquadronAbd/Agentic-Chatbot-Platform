@@ -27,7 +27,7 @@ class PlannerAgent:
             return content.strip()
         return str(content)
 
-    def plan_and_execute(
+    async def plan_and_execute(
         self,
         question: str,
         memory=None,
@@ -36,13 +36,13 @@ class PlannerAgent:
         Retrieves document context then synthesises a structured answer in one
         combined prompt — eliminates the separate plan-generation LLM call.
         """
-        # Step 1: Retrieve relevant documents
-        doc_res = self.document_agent.answer(question=question, memory=memory)
+        # Step 1: Retrieve relevant documents (async — document_agent handles thread offload)
+        doc_res = await self.document_agent.answer(question=question, memory=memory)
         retrieved_docs = doc_res.get("documents", [])
         sources = doc_res.get("sources", [])
         doc_context = doc_res.get("answer", "")
 
-        # Step 2: Plan + synthesise in a single LLM call
+        # Step 2: Plan + synthesise in a single async LLM call
         prompt = f"""You are a strategic financial analyst.
 
 Question: {question}
@@ -54,7 +54,7 @@ First, briefly outline 2-4 reasoning steps you will follow, then provide a
 comprehensive, clearly structured answer that addresses all parts of the question.
 Use specific figures and citations from the context where available."""
 
-        final_response = llm.invoke(prompt)
+        final_response = await llm.ainvoke(prompt)
         final_answer = self._extract_text(final_response)
 
         return {

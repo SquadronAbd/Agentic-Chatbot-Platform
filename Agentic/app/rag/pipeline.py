@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 import psycopg
 from loguru import logger
@@ -12,6 +13,48 @@ from app.config.settings import settings
 
 def _pg_url() -> str:
     return settings.DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
+
+
+def _file_sha256(filepath: str) -> str:
+    h = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for block in iter(lambda: f.read(65536), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def _stored_hash(source: str) -> str | None:
+    """Return the content_hash stored for this source file, or None if not found."""
+    try:
+        with psycopg.connect(_pg_url()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT cmetadata->>'content_hash' FROM langchain_pg_embedding "
+                    "WHERE cmetadata->>'source' = %s LIMIT 1",
+                    (source,),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+    except Exception as exc:
+        logger.warning("Hash check failed for {}: {}", source, exc)
+        return None
+
+
+def _delete_by_source(source: str) -> int:
+    """Delete all pgvector chunks for a given source file. Returns deleted count."""
+    try:
+        with psycopg.connect(_pg_url()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM langchain_pg_embedding WHERE cmetadata->>'source' = %s",
+                    (source,),
+                )
+                deleted = cur.rowcount
+            conn.commit()
+        return deleted
+    except Exception as exc:
+        logger.error("Failed to delete chunks for {}: {}", source, exc)
+        return 0
 
 
 def _ensure_columns() -> None:
@@ -64,6 +107,23 @@ class Pipeline:
                 except Exception:
                     pass
 
+        # ── content-hash dedup ───────────────────────────────────────────────
+        # Compute SHA-256 of the file and compare to the stored hash.
+        # Skip entirely if unchanged; delete old chunks first if the file was updated.
+        source = str(Path(filepath).resolve())
+        new_hash = _file_sha256(filepath)
+        stored = _stored_hash(source)
+
+        if stored == new_hash:
+            logger.info("Skipping {} — content unchanged (hash match)", Path(filepath).name)
+            return 0
+
+        if stored is not None:
+            deleted = _delete_by_source(source)
+            logger.info("File updated — deleted {} old chunks for {}", deleted, Path(filepath).name)
+            bm25_corpus.remove_by_source(source)
+
+        # ── ingestion ────────────────────────────────────────────────────────
         logger.info(f"Loading {filepath}")
         _notify("ingesting")
         documents = self.loader.load(filepath)
@@ -71,6 +131,10 @@ class Pipeline:
 
         _notify("chunking")
         chunks = self.chunker.chunk(documents)
+
+        # Stamp the content hash into each chunk's metadata so we can retrieve it later
+        for chunk in chunks:
+            chunk.metadata["content_hash"] = new_hash
 
         logger.info(f"Adding {len(chunks)} chunks")
         _notify("embedding")

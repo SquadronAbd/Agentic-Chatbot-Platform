@@ -35,11 +35,19 @@ async def _run_ingestion(document_id: str, file_path: str, filename: str) -> Non
                         },
                     )
 
-            if response.status_code != 200:
+            if response.status_code not in (200, 202):
                 await repo.update_status(document_id, "error")
                 return
 
-            chunk_count = response.json().get("chunks", 0)
+            result = response.json()
+            if result.get("accepted"):
+                # Agentic service accepted the job and runs it in the background.
+                # Status transitions ("ingesting" → "chunking" → "embedding" → "ready")
+                # arrive via the callback_url — nothing more to do here.
+                return
+
+            # Legacy synchronous response still carries chunk count directly.
+            chunk_count = result.get("chunks", 0)
             await repo.update_status(document_id, "ready", chunk_count=chunk_count)
 
         except Exception:
