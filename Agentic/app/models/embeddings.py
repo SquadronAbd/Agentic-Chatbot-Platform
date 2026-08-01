@@ -1,5 +1,12 @@
-from langchain.embeddings import CacheBackedEmbeddings
-from langchain.storage import LocalFileStore
+try:
+    from langchain.embeddings.cache import CacheBackedEmbeddings
+except ImportError:
+    from langchain.embeddings import CacheBackedEmbeddings
+
+try:
+    from langchain.storage import LocalFileStore
+except ImportError:
+    from langchain_community.storage import LocalFileStore
 
 from app.config.settings import settings
 
