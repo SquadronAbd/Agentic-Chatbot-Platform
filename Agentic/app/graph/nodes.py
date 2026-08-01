@@ -39,11 +39,13 @@ class GraphNodes:
         return state
 
     async def agent_node(self, state: GraphState) -> GraphState:
+        source_filter_list = state.get("source_filter") or []
         result = await self.agent_manager.ask(
             question=state.get("question", ""),
             memory=state.get("memory"),
             intent=state.get("intent", "general"),
             use_reflection=False,
+            source_filter=tuple(source_filter_list) if source_filter_list else None,
         )
         state["answer"] = result["answer"]
         state["retrieved_documents"] = result.get("documents", [])

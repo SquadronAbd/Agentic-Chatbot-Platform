@@ -194,14 +194,26 @@ class HybridRetriever:
         self.bm25_k = bm25_k
         self.final_k = final_k
 
-    def retrieve(self, query: str) -> list[Document]:
-        return self._retrieve_cached(query)
+    def retrieve(
+        self,
+        query: str,
+        source_filter: tuple[str, ...] | None = None,
+    ) -> list[Document]:
+        return self._retrieve_cached(query, source_filter)
 
     @lru_cache(maxsize=256)
-    def _retrieve_cached(self, query: str) -> list[Document]:
-        return self._retrieve(query)
+    def _retrieve_cached(
+        self,
+        query: str,
+        source_filter: tuple[str, ...] | None = None,
+    ) -> list[Document]:
+        return self._retrieve(query, source_filter)
 
-    def _retrieve(self, query: str) -> list[Document]:
+    def _retrieve(
+        self,
+        query: str,
+        source_filter: tuple[str, ...] | None = None,
+    ) -> list[Document]:
         pipeline_warnings: list[str] = []
 
         semantic_weight, bm25_weight = _get_weights(query)
@@ -215,11 +227,21 @@ class HybridRetriever:
             abstract_query = transformer.transform(query)
             use_abstract = abstract_query.lower().strip() != query.lower().strip()
 
+        # Build pgvector metadata filter when source paths are specified.
+        pg_filter: dict | None = None
+        if source_filter:
+            pg_filter = (
+                {"source": source_filter[0]}
+                if len(source_filter) == 1
+                else {"source": {"$in": list(source_filter)}}
+            )
+        bm25_src_filter = set(source_filter) if source_filter else None
+
         # --- semantic search ---
         t0 = time.perf_counter()
         try:
             original_semantic = vector_store.similarity_search(
-                query=query, k=self.semantic_k
+                query=query, k=self.semantic_k, filter=pg_filter
             )
         except Exception as exc:
             logger.error(f"Semantic search failed: {exc}")
@@ -230,7 +252,7 @@ class HybridRetriever:
         if use_abstract:
             try:
                 abstract_semantic = vector_store.similarity_search(
-                    query=abstract_query, k=self.semantic_k // 2
+                    query=abstract_query, k=self.semantic_k // 2, filter=pg_filter
                 )
             except Exception as exc:
                 logger.warning(f"Abstract semantic search failed: {exc}")
@@ -241,10 +263,10 @@ class HybridRetriever:
 
         # --- BM25 search ---
         t0 = time.perf_counter()
-        original_bm25 = bm25_corpus.search(query, k=self.bm25_k)
+        original_bm25 = bm25_corpus.search(query, k=self.bm25_k, source_filter=bm25_src_filter)
         abstract_bm25: list[tuple[Document, float]] = []
         if use_abstract:
-            abstract_bm25 = bm25_corpus.search(abstract_query, k=self.bm25_k // 2)
+            abstract_bm25 = bm25_corpus.search(abstract_query, k=self.bm25_k // 2, source_filter=bm25_src_filter)
         bm25_results = _dedup_bm25(original_bm25 + abstract_bm25)
         t_bm25 = time.perf_counter() - t0
 

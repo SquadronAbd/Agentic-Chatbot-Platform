@@ -21,3 +21,7 @@ class GraphState(TypedDict, total=False):
 
     # Conversation Memory
     memory: Any
+
+    # Source paths to restrict retrieval (populated from user's uploaded documents).
+    # Empty list means no restriction — search the full corpus.
+    source_filter: List[str]

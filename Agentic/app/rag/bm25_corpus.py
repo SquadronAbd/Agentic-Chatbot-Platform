@@ -31,13 +31,26 @@ class BM25Corpus:
         self._documents.extend(documents)
         self._rebuild()
 
-    def search(self, query: str, k: int = 20) -> list[tuple[Document, float]]:
+    def search(
+        self,
+        query: str,
+        k: int = 20,
+        source_filter: set[str] | None = None,
+    ) -> list[tuple[Document, float]]:
         if not self._bm25 or not self._documents:
             return []
         tokenized = query.lower().split()
         scores = self._bm25.get_scores(tokenized)
-        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-        return [(self._documents[i], float(scores[i])) for i in top_indices]
+        # Oversample when filtering so we still get k results after the source check.
+        oversample = k * 5 if source_filter else k
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:oversample]
+        results = [(self._documents[i], float(scores[i])) for i in top_indices]
+        if source_filter:
+            results = [
+                (doc, score) for doc, score in results
+                if doc.metadata.get("source") in source_filter
+            ]
+        return results[:k]
 
     @property
     def size(self) -> int:

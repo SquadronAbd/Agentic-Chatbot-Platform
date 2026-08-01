@@ -18,6 +18,7 @@ from app.rag.rag_service import RAGService
 from app.evaluation.evaluator import RAGEvaluator
 from app.rag.pipeline import pipeline
 from app.rag.bm25_corpus import bm25_corpus
+from app.rag.doc_store import add_source
 from app.memory.session import session_manager
 from app.tools.retriever_tool import RetrieverTool
 from app.user_ingestion.upload_service import UploadService
@@ -143,6 +144,7 @@ async def ingest_file(
     document_id: str = Form(None),
     callback_url: str = Form(None),
     internal_key: str = Form(None),
+    owner_id: str = Form(None),
 ):
     """
     Upload and ingest a user document (PDF, TXT, MD) into the RAG knowledge base.
@@ -166,6 +168,9 @@ async def ingest_file(
             detail=f"Failed to save file: {str(e)}",
         )
 
+    from pathlib import Path as _Path
+    resolved_source = str(_Path(file_path).resolve())
+
     def _run():
         svc = UploadService()
         svc.ingest(
@@ -174,6 +179,10 @@ async def ingest_file(
             callback_url=callback_url,
             internal_key=internal_key,
         )
+        # Register the resolved source path under this user so retrieval
+        # can scope "this document" queries to their own uploads.
+        if owner_id:
+            add_source(owner_id, resolved_source)
 
     background_tasks.add_task(_run)
 

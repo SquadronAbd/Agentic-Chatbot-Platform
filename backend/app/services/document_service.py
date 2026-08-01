@@ -15,7 +15,7 @@ from app.models.documents import Document
 UPLOAD_DIR = "uploads"
 
 
-async def _run_ingestion(document_id: str, file_path: str, filename: str) -> None:
+async def _run_ingestion(document_id: str, file_path: str, filename: str, owner_id: str = "") -> None:
     """Background task: call agentic /ingest and update document status."""
     async with AsyncSessionLocal() as db:
         repo = DocumentRepository(db)
@@ -32,6 +32,7 @@ async def _run_ingestion(document_id: str, file_path: str, filename: str) -> Non
                             "document_id": document_id,
                             "callback_url": callback_url,
                             "internal_key": settings.INTERNAL_API_KEY,
+                            "owner_id": owner_id,
                         },
                     )
 
@@ -81,7 +82,7 @@ class DocumentService:
 
         # Run the heavy agentic ingestion in the background.
         background_tasks.add_task(
-            _run_ingestion, str(doc.id), file_path, filename
+            _run_ingestion, str(doc.id), file_path, filename, str(current_user.id)
         )
 
         return doc

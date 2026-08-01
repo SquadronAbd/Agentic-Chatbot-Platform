@@ -35,6 +35,7 @@ class AgentManager:
         memory: Optional[Any] = None,
         intent: Optional[str] = None,
         use_reflection: bool = True,
+        source_filter: Optional[tuple] = None,
     ) -> Dict[str, Any]:
         if intent is None:
             intent = (await self._classifier.classify(question)).value
@@ -49,7 +50,7 @@ class AgentManager:
             sources = result.get("sources", [])
 
         elif intent == "document":
-            result = await self.document.answer(question=question, memory=memory)
+            result = await self.document.answer(question=question, memory=memory, source_filter=source_filter)
             draft_answer = result["answer"]
             documents = result.get("documents", [])
             sources = result.get("sources", [])

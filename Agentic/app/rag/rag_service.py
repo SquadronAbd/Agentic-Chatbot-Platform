@@ -3,6 +3,7 @@ from typing import Any, Dict
 from app.graph.workflow import graph
 from app.memory.session import session_manager
 from app.memory.summarizer import ConversationSummarizer
+from app.rag.doc_store import get_sources
 
 
 class RAGService:
@@ -29,6 +30,11 @@ class RAGService:
             memory = self.session_manager.get_memory(session_id)
             await self._summarize_if_needed(memory)
 
+            # session_id format: "{user_id}_{conversation_id}" — extract user_id
+            # to look up which documents this user has uploaded.
+            owner_id = session_id.split("_", 1)[0] if "_" in session_id else session_id
+            source_filter = get_sources(owner_id)
+
             initial_state = {
                 "session_id": session_id,
                 "question": question,
@@ -42,6 +48,7 @@ class RAGService:
                 "sources": [],
                 "metadata": {},
                 "memory": memory,
+                "source_filter": source_filter,
             }
 
             result = await graph.ainvoke(initial_state)
