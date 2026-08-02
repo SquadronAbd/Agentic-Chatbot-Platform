@@ -1,7 +1,38 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, type StorageValue } from "zustand/middleware";
+
+// Safe localStorage wrapper — swallows QuotaExceededError instead of crashing.
+// On quota exceeded, evicts non-critical keys to make room and retries once.
+const _KEEP_KEYS = new Set(["auth-storage", "access_token", "refresh_token", "user"]);
+const safeStorage = {
+  getItem: (name: string): StorageValue<unknown> | null => {
+    try {
+      const raw = localStorage.getItem(name);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  },
+  setItem: (name: string, value: StorageValue<unknown>): void => {
+    const serialized = JSON.stringify(value);
+    try {
+      localStorage.setItem(name, serialized);
+    } catch (e) {
+      if (e instanceof DOMException && (e.name === "QuotaExceededError" || e.code === 22)) {
+        try {
+          // Evict stale non-auth keys to free space, then retry.
+          Object.keys(localStorage)
+            .filter((k) => !_KEEP_KEYS.has(k) && k !== name)
+            .forEach((k) => localStorage.removeItem(k));
+          localStorage.setItem(name, serialized);
+        } catch { /* give up silently — theme won't persist this session */ }
+      }
+    }
+  },
+  removeItem: (name: string): void => {
+    try { localStorage.removeItem(name); } catch { /* ignore */ }
+  },
+};
 
 type Theme = "light" | "dark";
 
@@ -50,6 +81,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: "ui-storage",
+      storage: safeStorage,
       partialize: (state) => ({
         theme: state.theme,
         sidebarCollapsed: state.sidebarCollapsed,
