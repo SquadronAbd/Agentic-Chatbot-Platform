@@ -24,9 +24,38 @@ from app.tools.retriever_tool import RetrieverTool
 from app.user_ingestion.upload_service import UploadService
 
 
+def _ensure_hnsw_index() -> None:
+    """Create HNSW index on the embedding column if it doesn't exist yet."""
+    import psycopg
+    pg_url = settings.DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
+    try:
+        with psycopg.connect(pg_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 1 FROM pg_indexes
+                    WHERE tablename = 'langchain_pg_embedding'
+                      AND indexdef LIKE '%hnsw%'
+                """)
+                if cur.fetchone() is None:
+                    logger.info("HNSW index not found — creating (this runs once)...")
+                    cur.execute("""
+                        CREATE INDEX IF NOT EXISTS ix_langchain_embedding_hnsw
+                        ON langchain_pg_embedding
+                        USING hnsw (embedding vector_cosine_ops)
+                        WITH (m = 16, ef_construction = 64)
+                    """)
+                    conn.commit()
+                    logger.info("HNSW index created successfully")
+                else:
+                    logger.info("HNSW index already exists — skipping")
+    except Exception as exc:
+        logger.warning("HNSW index creation skipped: {}", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     bm25_corpus.bootstrap(settings.DATABASE_URL, settings.COLLECTION_NAME)
+    _ensure_hnsw_index()
     yield
 
 
