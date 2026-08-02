@@ -2,17 +2,21 @@ from app.config.settings import settings
 
 try:
     from langchain_huggingface import HuggingFaceEmbeddings
+    # langchain_huggingface supports query_instruction for asymmetric BGE embedding.
+    _underlying = HuggingFaceEmbeddings(
+        model_name=settings.EMBEDDING_MODEL,
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True, "batch_size": 128},
+        query_instruction="Represent this sentence for searching relevant passages: ",
+    )
 except ImportError:
     from langchain_community.embeddings import HuggingFaceEmbeddings
-
-_underlying = HuggingFaceEmbeddings(
-    model_name=settings.EMBEDDING_MODEL,
-    model_kwargs={"device": "cpu"},
-    encode_kwargs={"normalize_embeddings": True, "batch_size": 128},
-    # Asymmetric embedding: BGE models expect a retrieval prefix on the query side
-    # but no prefix for document passages — this improves recall at query time.
-    query_instruction="Represent this sentence for searching relevant passages: ",
-)
+    # langchain_community does not support query_instruction — omit it.
+    _underlying = HuggingFaceEmbeddings(
+        model_name=settings.EMBEDDING_MODEL,
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True, "batch_size": 128},
+    )
 
 # Wrap with disk-backed cache so identical text is never re-encoded.
 # Tries multiple import paths to handle LangChain version differences.
