@@ -1,13 +1,3 @@
-try:
-    from langchain.embeddings.cache import CacheBackedEmbeddings
-except ImportError:
-    from langchain.embeddings import CacheBackedEmbeddings
-
-try:
-    from langchain.storage import LocalFileStore
-except ImportError:
-    from langchain_community.storage import LocalFileStore
-
 from app.config.settings import settings
 
 try:
@@ -24,13 +14,26 @@ _underlying = HuggingFaceEmbeddings(
     query_instruction="Represent this sentence for searching relevant passages: ",
 )
 
-# Cache document and query embeddings on disk so identical text is never
-# re-encoded. Keyed by content hash; namespace prevents collisions if the
-# model is ever swapped.
-_store = LocalFileStore("/tmp/embedding_cache")
-embeddings = CacheBackedEmbeddings.from_bytes_store(
-    _underlying,
-    _store,
-    namespace=settings.EMBEDDING_MODEL,
-    query_embedding_cache=True,
-)
+# Wrap with disk-backed cache so identical text is never re-encoded.
+# Tries multiple import paths to handle LangChain version differences.
+# Falls back to the underlying embedder if caching cannot be set up.
+try:
+    try:
+        from langchain.embeddings.cache import CacheBackedEmbeddings
+    except ImportError:
+        from langchain.embeddings import CacheBackedEmbeddings
+
+    try:
+        from langchain.storage import LocalFileStore
+    except ImportError:
+        from langchain_community.storage import LocalFileStore
+
+    _store = LocalFileStore("/tmp/embedding_cache")
+    embeddings = CacheBackedEmbeddings.from_bytes_store(
+        _underlying,
+        _store,
+        namespace=settings.EMBEDDING_MODEL,
+        query_embedding_cache=True,
+    )
+except Exception:
+    embeddings = _underlying
