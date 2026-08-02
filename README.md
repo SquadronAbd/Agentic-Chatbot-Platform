@@ -1,396 +1,313 @@
-# 🤖 Enterprise Agentic RAG Platform for Financial Report Analysis
+# Enterprise Agentic RAG Platform — FinRAG
 
-An enterprise-grade **Multi-Agent Retrieval-Augmented Generation (RAG)** platform designed for intelligent analysis of enterprise financial reports.
+An enterprise-grade **Multi-Agent Retrieval-Augmented Generation (RAG)** platform for intelligent analysis of financial documents. Users upload their own documents and query them through a conversational AI interface with real-time streaming responses.
 
-Built with **LangGraph**, the platform orchestrates multiple specialized AI agents that collaboratively retrieve, reason, validate, and generate context-aware responses from financial documents. Unlike traditional RAG systems that rely on a single LLM pipeline, this platform follows an **agentic architecture**, where each agent is responsible for a dedicated task such as planning, routing, document retrieval, memory management, reflection, and tool execution.
-
-The system utilizes **PostgreSQL + pgvector** for semantic retrieval, enabling efficient vector similarity search over embedded financial reports.
+Built with **LangGraph**, the platform orchestrates specialized AI agents for intent classification, document retrieval, planning, and reflection. Retrieval uses a hybrid dense + BM25 pipeline with cross-encoder reranking, HNSW indexing, and document-scoped filtering.
 
 ---
 
-# 🚀 Features
+## Features
 
-- 🤖 Multi-Agent AI Architecture powered by LangGraph
-- 📄 Enterprise Financial Report Analysis
-- 🔍 Retrieval-Augmented Generation (RAG)
-- 🧠 Semantic Search using PostgreSQL + pgvector
-- 💬 Context-Aware Conversational Chat
-- 📝 Multi-turn Conversation Memory
-- 🔄 Reflection-based Response Validation
-
-- 🛠️ Tool-Augmented Reasoning
-
-- 📂 Markdown Financial Document Processing
-- 🔐 JWT Authentication & Role-Based Access Control
-- 📊 Modern Analytics Dashboard
-- ⚡ FastAPI Backend
-- 🌐 React / Next.js Frontend
-- 🐳 Dockerized Deployment
+- **Multi-Agent LangGraph Workflow** — intent classifier routes to General, Document, or Planner agent; Reflection agent validates every answer
+- **Hybrid Retrieval** — semantic (pgvector HNSW) + BM25 merged via Reciprocal Rank Fusion, reranked with a cross-encoder
+- **Document-Scoped Retrieval** — "this document" queries are scoped to the user's own uploaded files via Redis-tracked source paths
+- **Adaptive Chunking** — markdown-header-aware two-pass chunker; sentence-boundary splits; short PDF page bypass; noise chunk filter
+- **Asymmetric BGE Embeddings** — query prefix applied at search time; documents encoded without prefix for better recall
+- **Disk-Backed Embedding Cache** — `CacheBackedEmbeddings` on `LocalFileStore`; re-uploading the same document is instant
+- **Redis-Backed Session Memory** — 24h conversation memory per session with in-memory fallback
+- **Content-Hash Dedup on Ingest** — unchanged files are skipped; updated files delete old chunks before reingest
+- **Real-Time Streaming Chat** — WebSocket with per-word streaming; automatic reconnect; token expiry redirect
+- **Document Upload with Progress** — background ingestion pipeline with stage callbacks (ingesting → chunking → embedding → ready)
+- **LLM Response Cache** — SQLite-backed global cache; identical prompts served from disk without Groq API calls
+- **LLM Retry** — exponential backoff with jitter (3 attempts) on Groq API failures
+- **JWT Authentication + RBAC** — access / refresh tokens; role-based endpoints (admin, manager, agent, viewer)
+- **Airflow Analytics DAGs** — scheduled maintenance and analytics pipelines
+- **Docker Compose Deployment** — single command to start all services behind Nginx
 
 ---
 
-# 🏗️ System Architecture
+## System Architecture
 
-```text
-                             ┌───────────────────────────┐
-                             │   React / Next.js Client  │
-                             └─────────────┬─────────────┘
-                                           │
-                                           ▼
-                               FastAPI REST Backend
-                                           │
-                                           ▼
-                          LangGraph Agent Orchestrator
-                                           │
-        ┌──────────────┬─────────────┬─────────────┬──────────────┐
-        ▼              ▼             ▼             ▼              ▼
-   Router Agent   Planner Agent  Memory Agent  Tool Agent  General Agent
-        │
-        ▼
- Document Retrieval Agent
-        │
-        ▼
- Reflection Agent
-        │
-        ▼
- Final AI Response
-        │
-        ▼
- PostgreSQL + pgvector
-        │
-        ▼
- Financial Reports Dataset
+```
+User Browser
+     │  WebSocket / REST
+     ▼
+  Nginx (reverse proxy, port 80)
+     │
+     ├── /api/v1/  ──► FastAPI Backend (port 8000)
+     │                      │  JWT auth, conversations, document management
+     │                      │  HTTP POST to agentic /chat and /ingest
+     │                      ▼
+     │               Agentic AI Service (port 8001)
+     │                      │
+     │               LangGraph Workflow
+     │                      │
+     │        ┌─────────────┼─────────────┐
+     │        ▼             ▼             ▼
+     │   General Agent  Document Agent  Planner Agent
+     │                      │
+     │               Hybrid Retriever
+     │               ├── pgvector HNSW (semantic)
+     │               ├── BM25 (keyword)
+     │               ├── RRF merge
+     │               └── Cross-encoder rerank
+     │
+     ├── /  ──────────► Next.js Frontend (port 3000)
+     │
+PostgreSQL + pgvector  ◄── vector embeddings + app tables
+Redis                  ◄── sessions, doc source registry
+Airflow                ◄── analytics DAGs (port 8080)
 ```
 
 ---
 
-# 🧠 Multi-Agent Architecture
+## Agent Workflow
 
-Unlike conventional chatbots, this platform distributes responsibilities across specialized AI agents coordinated through **LangGraph**.
-
-| Agent | Responsibility |
-|--------|----------------|
-| **Agent Manager** | Coordinates the complete workflow and manages agent state transitions. |
-| **Router Agent** | Identifies user intent and routes requests to the appropriate workflow. |
-| **Planner Agent** | Decomposes complex financial queries into logical reasoning steps. |
-| **Document Agent** | Retrieves relevant financial report sections using semantic similarity search over pgvector embeddings. |
-| **Memory Agent** | Maintains conversational context and previous interactions for coherent multi-turn conversations. |
-| **Tool Agent** | Executes external tools and utility functions whenever additional computation or retrieval is required. |
-| **Reflection Agent** | Reviews generated responses to improve factual consistency and completeness before returning them to the user. |
-| **General Agent** | Handles greetings, casual conversations, and general-purpose queries that do not require document retrieval. |
-
----
-
-# 🔄 Agent Workflow
-
-```text
-                User Query
-                     │
-                     ▼
-              Router Agent
-                     │
-        ┌────────────┴────────────┐
-        ▼                         ▼
-General Conversation      Financial Query
-        │                         │
-        ▼                         ▼
- General Agent             Planner Agent
-                                  │
-                                  ▼
-                         Document Agent
-                                  │
-                                  ▼
-                     PostgreSQL + pgvector
-                                  │
-                                  ▼
-                        Retrieved Context
-                                  │
-                                  ▼
-                           Memory Agent
-                                  │
-                                  ▼
-                            Tool Agent
-                                  │
-                                  ▼
-                        Reflection Agent
-                                  │
-                                  ▼
-                           Final Response
+```
+User Query
+     │
+     ▼
+Intent Classifier (LLM)
+     │
+     ├── "general" ──────────► General Agent ──────────────────┐
+     ├── "document" ─────────► Document Agent                  │
+     │                              │                           │
+     │                         Hybrid Retriever                 │
+     │                         (source-filtered if              │
+     │                          "this document" detected)       │
+     │                              │                           │
+     └── "planner" ─────────► Planner Agent                    │
+                                    │                           │
+                              Step decomposition                │
+                              → Document + General agents       │
+                                    │                           │
+                                    ▼                           │
+                            Reflection Agent ◄──────────────────┘
+                                    │
+                              Final Response
 ```
 
 ---
 
-# 🔍 Retrieval-Augmented Generation Pipeline
+## Retrieval Pipeline
 
-The chatbot follows a Retrieval-Augmented Generation workflow specifically optimized for enterprise financial reports.
-
-1. User submits a financial query.
-2. Router Agent determines the query type.
-3. Planner Agent formulates the retrieval strategy.
-4. Document Agent generates embeddings and retrieves relevant report sections from PostgreSQL + pgvector.
-5. Memory Agent incorporates previous conversational context.
-6. Tool Agent executes any required utilities.
-7. Reflection Agent validates and refines the generated answer.
-8. The final response is returned to the user.
-
----
-
-# 📚 Dataset
-
-The project is trained on enterprise financial reports converted into Markdown format to facilitate efficient semantic indexing and retrieval.
-
-**Dataset Source**
-
-https://www.kaggle.com/datasets/rrr3try/enterprise-rag-markdown
-
-The dataset includes:
-
-- Annual Reports
-- Quarterly Reports
-- SEC Filings
-- Financial Statements
-- Management Discussions
-- Corporate Reports
+```
+Query
+  │
+  ├── Step-back transformer (LLM) → abstract query
+  │
+  ├── Semantic search  (pgvector HNSW, cosine similarity)
+  │     original query + abstract query → deduplicated
+  │
+  ├── BM25 keyword search
+  │     original query + abstract query → deduplicated
+  │
+  ├── Weighted RRF merge
+  │     conceptual queries: semantic=0.7, bm25=0.3
+  │     specific financial (amounts, tickers): semantic=0.3, bm25=0.7
+  │
+  ├── Cross-encoder reranking (ms-marco-MiniLM-L-6-v2)
+  │
+  └── Page-based context expansion (PDFs only)
+```
 
 ---
 
-# 🛠️ Technology Stack
+## Technology Stack
 
-## AI & LLM
+### AI / LLM
 
-- LangChain
-- LangGraph
-- HuggingFace Transformers
-- Sentence Transformers
+| Component | Technology |
+|-----------|-----------|
+| LLM | `llama-3.3-70b-versatile` via Groq |
+| Embedding | `BAAI/bge-small-en-v1.5` (local CPU, batch_size=128) |
+| Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` (local CPU) |
+| Orchestration | LangGraph |
+| LLM Framework | LangChain |
+| LLM Cache | LangChain SQLiteCache |
+| Embedding Cache | LangChain CacheBackedEmbeddings + LocalFileStore |
 
-### Models
+### Backend
 
-| Role | Model |
-|------|-------|
-| **LLM** | `llama-3.3-70b-versatile` via [Groq](https://groq.com) |
-| **Embedding** | `BAAI/bge-small-en-v1.5` (local, CPU) via HuggingFace |
-| **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` (local, CPU) via HuggingFace |
+| Component | Technology |
+|-----------|-----------|
+| API Framework | FastAPI |
+| ORM | SQLAlchemy (async) |
+| Migrations | Alembic |
+| Auth | JWT (access + refresh tokens) |
+| Vector DB | PostgreSQL + pgvector (HNSW index) |
+| App DB | PostgreSQL |
+| Cache / Sessions | Redis |
+| HTTP Client | httpx (async) |
+| Task Queue | FastAPI BackgroundTasks |
+| Analytics | Apache Airflow |
 
-## Backend
+### Frontend
 
-- FastAPI
-- SQLAlchemy
-- PostgreSQL
-- pgvector
-- Alembic
-- Redis
-- JWT Authentication
+| Component | Technology |
+|-----------|-----------|
+| Framework | Next.js 14 (App Router) |
+| State | Zustand (persist middleware) |
+| Styling | Tailwind CSS |
+| Chat | WebSocket with streaming |
+| Data Fetching | TanStack Query |
 
-## Frontend
+### Infrastructure
 
-- React
-- Next.js
-- Tailwind CSS
-
-## Deployment
-
-- Docker
-- Docker Compose
+| Component | Technology |
+|-----------|-----------|
+| Reverse Proxy | Nginx |
+| Containerization | Docker + Docker Compose |
+| Embedding Volume | Docker named volume (`embedding_cache`) |
 
 ---
 
-# 📂 Project Structure
+## Project Structure
 
+```
+Agentic-Chatbot-Platform/
+├── Agentic/                        # AI service (port 8001)
+│   └── app/
+│       ├── agents/                 # General, Document, Planner, Reflection
+│       ├── graph/                  # LangGraph workflow, state, nodes, edges
+│       ├── memory/                 # Redis-backed session manager, summarizer
+│       ├── models/                 # LLM, embeddings (cached), vector store
+│       ├── prompts/                # Prompt builder
+│       ├── rag/                    # Retriever, chunker, pipeline, BM25, doc_store
+│       ├── router/                 # Intent classifier
+│       ├── tools/                  # RetrieverTool, ToolManager
+│       ├── user_ingestion/         # UploadService, DocumentParser
+│       └── main.py                 # FastAPI app, lifespan (HNSW init, BM25 bootstrap)
+│
+├── backend/                        # Application backend (port 8000)
+│   └── app/
+│       ├── api/v1/                 # chat, documents, auth, users endpoints
+│       ├── core/                   # config, security, database, deps
+│       ├── models/                 # SQLAlchemy ORM models
+│       ├── repositories/           # DB access layer
+│       ├── services/               # DocumentService, auth logic
+│       └── airflow/dags/           # Airflow analytics DAGs
+│
+├── frontend/                       # Next.js app (port 3000)
+│   ├── app/                        # App Router pages
+│   ├── components/                 # chat, ui, sidebar, documents
+│   ├── hooks/                      # use-chat-stream (WebSocket), use-api
+│   └── store/                      # Zustand stores (auth, chat, ui)
+│
+├── nginx.conf                      # Reverse proxy config
+├── docker-compose.yml              # All services
+└── README.md
+```
 
 ---
 
-# ⚙️ Installation
+## Quickstart (Docker)
 
-## Clone the Repository
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Groq API key
+
+### 1. Clone
 
 ```bash
-git clone <repository-url>
-
-cd Agentic_Chatbot_Platform
+git clone https://github.com/SquadronAbd/Agentic-Chatbot-Platform.git
+cd Agentic-Chatbot-Platform
 ```
+
+### 2. Configure environment
+
+Create `Agentic/.env`:
+
+```env
+GROQ_API_KEY=your_groq_api_key
+LLM_MODEL=llama-3.3-70b-versatile
+EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+COLLECTION_NAME=documents
+DATABASE_URL=postgresql+psycopg://postgres:password@pgvector:5432/financial_rag
+REDIS_URL=redis://redis:6379/0
+```
+
+Create `backend/.env`:
+
+```env
+SECRET_KEY=your_secret_key
+DATABASE_URL=postgresql+asyncpg://postgres:password@pgvector:5432/chatbot_db
+REDIS_URL=redis://redis:6379/0
+AI_SERVICE_URL=http://agentic:8000
+BACKEND_INTERNAL_URL=http://backend:8000
+INTERNAL_API_KEY=your_internal_key
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+### 3. Start all services
+
+```bash
+docker compose up --build -d
+```
+
+Services started:
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost |
+| Backend API | http://localhost/api/v1 |
+| Agentic AI | http://localhost:8001 |
+| Airflow | http://localhost:8080 |
+
+### 4. Upload documents and chat
+
+1. Register / log in at `http://localhost`
+2. Upload a financial document (PDF, TXT, MD — up to 50 MB)
+3. Wait for status to change to **Ready**
+4. Ask questions in the chat
 
 ---
 
-## Backend
+## Database
 
-```bash
-cd backend
-
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# Linux / macOS
-source .venv/bin/activate
-
-pip install -r requirements.txt
-```
+| Store | Purpose |
+|-------|---------|
+| PostgreSQL (`chatbot_db`) | Users, conversations, messages, documents |
+| PostgreSQL (`financial_rag`) | pgvector chunk embeddings (HNSW indexed) |
+| Redis | Conversation sessions (24h TTL), user document source registry |
+| LocalFileStore (`/tmp/embedding_cache`) | Disk-backed embedding cache (Docker volume) |
+| SQLite (`/tmp/llm_cache.db`) | LLM response cache |
 
 ---
 
-## AI Service
+## Example Questions
 
-```bash
-cd ai
-
-pip install -r requirements.txt
-```
-
----
-
-## Frontend
-
-```bash
-cd frontend
-
-npm install
-```
-
----
-
-# ▶️ Running the Project
-
-## Start Backend
-
-```bash
-uvicorn app.main:app --reload
-```
-
-## Start AI Service
-
-```bash
-python main.py
-```
-
-## Start Frontend
-
-```bash
-npm run dev
-```
-
----
-
-# 🗄️ Database
-
-The platform uses multiple storage layers.
-
-| Component | Purpose |
-|-----------|---------|
-| PostgreSQL | Relational database for application data |
-| pgvector | Vector embeddings and semantic similarity search |
-| Redis | Caching, sessions, and application state |
-
----
-
-# 💬 Example Questions
-
-The chatbot can answer questions such as:
-
-- Summarize Apple's annual financial report.
-- What were Microsoft's operating expenses in 2023?
-- Compare Amazon's revenue growth over the last three years.
-- Identify the major business risks mentioned in Tesla's filings.
-- What factors contributed to the decline in net income?
-- Explain the company's cash flow position.
-- What are the major revenue streams?
-- Summarize the management discussion section.
+- Which company does this document belong to?
+- Summarize the key financial highlights from this report.
+- What were the operating expenses in Q3?
+- Compare revenue growth over the last three fiscal years.
+- What business risks are disclosed in the filing?
+- What is the company's cash flow position?
+- Explain the management discussion section.
 - What acquisitions were completed during the fiscal year?
-- Compare quarterly performance with the previous year.
 
 ---
 
-# 📈 Use Cases
+## Use Cases
 
-- Financial Report Summarization
-- SEC Filing Analysis
-- Enterprise Knowledge Retrieval
-- Investment Research Assistance
-- Risk Assessment
-- Earnings Report Analysis
-- Financial Trend Discovery
-- Balance Sheet Interpretation
-- Cash Flow Analysis
-- Business Intelligence
+- Financial report summarization and Q&A
+- SEC filing analysis
+- Enterprise knowledge retrieval from uploaded documents
+- Investment research assistance
+- Risk and compliance review
+- Earnings analysis
 
 ---
 
-# 👥 Team Responsibilities
-
-## Backend
-
-Responsible for:
-
-- Authentication
-- JWT Authorization
-- Role-Based Access Control (RBAC)
-- PostgreSQL Integration
-- SQLAlchemy ORM
-- Alembic Migrations
-- REST APIs
-- Redis Integration
-
----
-
-## AI
-
-Responsible for:
-
-- LangGraph Workflow
-- Multi-Agent Orchestration
-- Prompt Engineering
-- Retrieval-Augmented Generation
-- Embedding Generation
-- PostgreSQL + pgvector Integration
-- Semantic Search
-- Context Retrieval
-- Response Generation
-
----
-
-## Frontend
-
-Responsible for:
-
-- Authentication UI
-- Dashboard
-- Chat Interface
-- Document Upload
-- Analytics Dashboard
-- User Experience
-
----
-
-# 🚀 Future Improvements
-
-- Citation-aware Responses
-- Streaming Responses
-- Multi-document Reasoning
-- OCR Support for Scanned PDFs
-- Financial Chart Generation
-- Multi-modal RAG
-- Cloud Deployment (AWS / Azure / GCP)
-- Human-in-the-Loop Review
-
----
-
-# 📄 License
+## License
 
 This project is intended for educational and research purposes.
 
 ---
 
-## ⭐ Acknowledgements
+## Acknowledgements
 
-- LangChain
-- LangGraph
-- FastAPI
-- PostgreSQL
-- pgvector
-- HuggingFace
-- React
-- Next.js
-- Docker
+LangChain · LangGraph · FastAPI · PostgreSQL · pgvector · HuggingFace · Next.js · Docker · Groq · Redis · Apache Airflow
 
-Dataset:
-https://www.kaggle.com/datasets/rrr3try/enterprise-rag-markdown
+Dataset: https://www.kaggle.com/datasets/rrr3try/enterprise-rag-markdown
