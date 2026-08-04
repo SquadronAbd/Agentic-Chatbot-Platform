@@ -6,12 +6,6 @@ from fastapi import FastAPI, Form, UploadFile, File, HTTPException, BackgroundTa
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-# Global LLM response cache — identical prompts are served from disk instantly,
-# avoiding redundant Groq API calls for repeated questions across sessions.
-from langchain_community.cache import SQLiteCache
-from langchain_core.globals import set_llm_cache
-set_llm_cache(SQLiteCache(database_path="/tmp/llm_cache.db"))
-
 from app.utils.logger import logger
 from app.config.settings import settings
 from app.rag.rag_service import RAGService
@@ -96,6 +90,7 @@ class ChatRequest(BaseModel):
         "example": "What is RAG?"
     }
 )
+    owner_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     success: bool
@@ -118,6 +113,7 @@ class IngestDirectoryRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str = Field(..., json_schema_extra={"example":"semantic search"})
     k: int = Field(default=3, ge=1, le=20)
+    owner_id: str = Field(..., min_length=1)
 
 class ClearMemoryRequest(BaseModel):
     session_id: str = Field(..., json_schema_extra={"example":"session-123"})
@@ -157,7 +153,7 @@ async def chat_endpoint(request: ChatRequest):
     All LLM calls are async (ainvoke) so this awaits directly without a thread executor.
     """
     try:
-        res = await rag_service.ask(session_id=request.session_id, question=request.question)
+        res = await rag_service.ask(session_id=request.session_id, question=request.question, owner_id=request.owner_id)
         return res
     except Exception as e:
         logger.error(f"Error processing chat request: {e}")
@@ -205,6 +201,7 @@ async def ingest_file(
         svc.ingest(
             file_path,
             document_id=document_id,
+            owner_id=owner_id,
             callback_url=callback_url,
             internal_key=internal_key,
         )
@@ -216,6 +213,15 @@ async def ingest_file(
     background_tasks.add_task(_run)
 
     return {"accepted": True, "filename": filename}
+
+@app.delete("/documents/{document_id}", tags=["Ingestion"])
+def delete_document_chunks(document_id: str, owner_id: str):
+    """Internal cleanup endpoint used by the application backend."""
+    try:
+        deleted = pipeline.delete_document_chunks(owner_id, document_id)
+        return {"success": True, "deleted_chunks": deleted}
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 @app.post("/ingest-directory", tags=["Ingestion"])
 def ingest_directory(request: IngestDirectoryRequest):
@@ -306,7 +312,7 @@ def search_documents(request: SearchRequest):
     Perform standalone semantic document search.
     """
     try:
-        res = retriever_tool.search(request.query)
+        res = retriever_tool.search(request.query, owner_id=request.owner_id)
         docs = res.get("documents", [])
 
         results = []

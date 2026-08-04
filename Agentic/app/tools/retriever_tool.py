@@ -10,8 +10,9 @@ class RetrieverTool:
         self,
         query: str,
         source_filter: tuple[str, ...] | None = None,
+        owner_id: str | None = None,
     ) -> dict:
-        documents = retriever.retrieve(query, source_filter=source_filter)
+        documents = retriever.retrieve(query, source_filter=source_filter, owner_id=owner_id)
         return {
             "success": True,
             "count": len(documents),

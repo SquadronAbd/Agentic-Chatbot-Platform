@@ -1,18 +1,9 @@
 import asyncio
-import re
 from typing import Any, Optional
 
 from app.models.llm import llm
 from app.prompts.prompt_builder import PromptBuilder
 from app.tools.tool_manager import ToolManager
-
-# Matches queries that explicitly refer to a specific uploaded document,
-# e.g. "this document", "the uploaded file", "my report".
-_THIS_DOC_RE = re.compile(
-    r"\b(?:this|the|my|your|that)\s+(?:document|file|report|pdf|upload|attachment)\b",
-    re.I,
-)
-
 
 class DocumentAgent:
     """
@@ -61,14 +52,12 @@ class DocumentAgent:
         question: str,
         memory=None,
         source_filter: tuple[str, ...] | None = None,
+        owner_id: str | None = None,
     ) -> dict:
-        # Apply source filter only when the query explicitly references a specific
-        # document (e.g. "this document", "the file"). Without this guard, a filter
-        # set for one upload would wrongly restrict unrelated follow-up questions.
-        active_filter = source_filter if (source_filter and _THIS_DOC_RE.search(question)) else None
-
         # Retrieval is sync (psycopg + BM25); run in thread to avoid blocking event loop
-        search_result = await asyncio.to_thread(self.retriever_tool.search, question, active_filter)
+        search_result = await asyncio.to_thread(
+            self.retriever_tool.search, question, source_filter, owner_id
+        )
         documents = search_result.get("documents", [])
 
         history = "" if memory is None else memory.get_history()

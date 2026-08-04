@@ -31,13 +31,17 @@ class PlannerAgent:
         self,
         question: str,
         memory=None,
+        source_filter: tuple[str, ...] | None = None,
+        owner_id: str | None = None,
     ) -> Dict[str, Any]:
         """
         Retrieves document context then synthesises a structured answer in one
         combined prompt — eliminates the separate plan-generation LLM call.
         """
         # Step 1: Retrieve relevant documents (async — document_agent handles thread offload)
-        doc_res = await self.document_agent.answer(question=question, memory=memory)
+        doc_res = await self.document_agent.answer(
+            question=question, memory=memory, source_filter=source_filter, owner_id=owner_id
+        )
         retrieved_docs = doc_res.get("documents", [])
         sources = doc_res.get("sources", [])
         doc_context = doc_res.get("answer", "")

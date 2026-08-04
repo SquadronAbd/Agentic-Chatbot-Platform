@@ -3,10 +3,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     GOOGLE_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
 
-    LLM_MODEL: str
+    LLM_MODEL: str = "gemini-2.0-flash"
 
     EMBEDDING_MODEL: str
 

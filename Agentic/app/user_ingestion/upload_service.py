@@ -49,12 +49,15 @@ class UploadService:
         if chunk_count is not None:
             payload["chunk_count"] = chunk_count
         try:
-            httpx.post(
+            # The backend exposes this as PATCH because it updates an existing
+            # document record; POST leaves documents stuck in "processing".
+            response = httpx.patch(
                 callback_url,
                 json=payload,
                 headers={"X-Internal-Key": internal_key or ""},
                 timeout=5,
             )
+            response.raise_for_status()
         except Exception as exc:
             logger.warning(f"Stage callback failed ({status}): {exc}")
 
@@ -62,6 +65,7 @@ class UploadService:
         self,
         file_path: str | Path,
         document_id: str | None = None,
+        owner_id: str | None = None,
         callback_url: str | None = None,
         internal_key: str | None = None,
     ) -> dict:
@@ -73,7 +77,10 @@ class UploadService:
         notify = lambda s: self._notify(callback_url, internal_key, s)
 
         try:
-            chunk_count = pipeline.ingest(str(file_path), on_stage=notify)
+            chunk_count = pipeline.ingest(
+                str(file_path), on_stage=notify, owner_id=owner_id,
+                document_id=document_id, filename=file_path.name,
+            )
         except Exception as exc:
             logger.error(f"Ingestion failed for {file_path.name}: {exc}")
             self._notify(callback_url, internal_key, "error")

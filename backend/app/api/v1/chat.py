@@ -25,12 +25,12 @@ _WORDS_PER_CHUNK = 4
 _TOKEN_RECHECK_INTERVAL = 60
 
 
-async def _call_agentic(session_id: str, question: str) -> dict:
+async def _call_agentic(session_id: str, question: str, owner_id: str) -> dict:
     """POST to Agentic /chat and return the parsed JSON response."""
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(
             f"{settings.AI_SERVICE_URL}/chat",
-            json={"session_id": session_id, "question": question},
+            json={"session_id": session_id, "question": question, "owner_id": owner_id},
         )
         response.raise_for_status()
         return response.json()
@@ -111,6 +111,7 @@ async def chat_stream(
                 pass
 
             logger.info("WS question=%r conv=%s", question[:80], msg_conv_id)
+            session_id = f"{user.id}_{msg_conv_id or 'default'}"
 
             if msg_conv_id:
                 try:
@@ -119,7 +120,7 @@ async def chat_stream(
                     logger.error("DB error saving user message: %s", db_err)
 
             try:
-                result = await _call_agentic(session_id, question)
+                result = await _call_agentic(session_id, question, str(user.id))
                 answer = result.get("answer") or "I was unable to generate a response."
             except httpx.HTTPStatusError as exc:
                 logger.error("Agentic HTTP error %s: %s", exc.response.status_code, exc.response.text)

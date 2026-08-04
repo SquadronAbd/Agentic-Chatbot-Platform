@@ -15,7 +15,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: financial_rag
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgvector_data:/var/lib/postgresql/data
       - ./backend/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql

@@ -25,14 +25,14 @@ class RAGService:
         recent = memory.last_messages(self.recent_messages)
         memory.replace_history(summary=summary, recent_messages=recent)
 
-    async def ask(self, session_id: str, question: str) -> Dict[str, Any]:
+    async def ask(self, session_id: str, question: str, owner_id: str | None = None) -> Dict[str, Any]:
         try:
             memory = self.session_manager.get_memory(session_id)
             await self._summarize_if_needed(memory)
 
             # session_id format: "{user_id}_{conversation_id}" — extract user_id
             # to look up which documents this user has uploaded.
-            owner_id = session_id.split("_", 1)[0] if "_" in session_id else session_id
+            owner_id = owner_id or (session_id.split("_", 1)[0] if "_" in session_id else session_id)
             source_filter = get_sources(owner_id)
 
             initial_state = {
@@ -49,6 +49,7 @@ class RAGService:
                 "metadata": {},
                 "memory": memory,
                 "source_filter": source_filter,
+                "owner_id": owner_id,
             }
 
             result = await graph.ainvoke(initial_state)

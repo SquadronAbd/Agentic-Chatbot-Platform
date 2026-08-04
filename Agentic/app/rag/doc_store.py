@@ -6,6 +6,8 @@ Falls back gracefully if Redis is unavailable (returns empty list).
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from loguru import logger
 
 from app.config.settings import settings
@@ -31,6 +33,7 @@ def add_source(owner_id: str, source_path: str) -> None:
     """Record that owner_id has ingested a document at source_path."""
     if not owner_id or not source_path:
         return
+    source_path = str(Path(source_path).resolve())
     r = _get_redis()
     if not r:
         return
@@ -54,3 +57,17 @@ def get_sources(owner_id: str) -> list[str]:
         return list(r.smembers(f"user:{owner_id}:doc_sources"))
     except Exception:
         return []
+
+
+def remove_source(owner_id: str, source_path: str) -> None:
+    """Forget a deleted document source for an owner."""
+    if not owner_id or not source_path:
+        return
+    source_path = str(Path(source_path).resolve())
+    r = _get_redis()
+    if not r:
+        return
+    try:
+        r.srem(f"user:{owner_id}:doc_sources", source_path)
+    except Exception as exc:
+        logger.warning("doc_store.remove_source failed: {}", exc)

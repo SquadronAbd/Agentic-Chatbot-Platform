@@ -8,6 +8,8 @@ from app.rag.cleaner import DocumentCleaner
 from app.rag.chunker import DocumentChunker
 from app.models.vector_store import vector_store
 from app.rag.bm25_corpus import bm25_corpus
+from app.rag.metadata import MetadataExtractor
+from app.rag.doc_store import remove_source
 from app.config.settings import settings
 
 
@@ -23,15 +25,17 @@ def _file_sha256(filepath: str) -> str:
     return h.hexdigest()
 
 
-def _stored_hash(source: str) -> str | None:
+def _stored_hash(source: str, owner_id: str | None = None, document_id: str | None = None) -> str | None:
     """Return the content_hash stored for this source file, or None if not found."""
     try:
         with psycopg.connect(_pg_url()) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT cmetadata->>'content_hash' FROM langchain_pg_embedding "
-                    "WHERE cmetadata->>'source' = %s LIMIT 1",
-                    (source,),
+                    "WHERE cmetadata->>'source' = %s "
+                    "AND (%s IS NULL OR cmetadata->>'owner_id' = %s) "
+                    "AND (%s IS NULL OR cmetadata->>'document_id' = %s) LIMIT 1",
+                    (source, owner_id, owner_id, document_id, document_id),
                 )
                 row = cur.fetchone()
                 return row[0] if row else None
@@ -40,14 +44,16 @@ def _stored_hash(source: str) -> str | None:
         return None
 
 
-def _delete_by_source(source: str) -> int:
+def _delete_by_source(source: str, owner_id: str | None = None, document_id: str | None = None) -> int:
     """Delete all pgvector chunks for a given source file. Returns deleted count."""
     try:
         with psycopg.connect(_pg_url()) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM langchain_pg_embedding WHERE cmetadata->>'source' = %s",
-                    (source,),
+                    "DELETE FROM langchain_pg_embedding WHERE cmetadata->>'source' = %s "
+                    "AND (%s IS NULL OR cmetadata->>'owner_id' = %s) "
+                    "AND (%s IS NULL OR cmetadata->>'document_id' = %s)",
+                    (source, owner_id, owner_id, document_id, document_id),
                 )
                 deleted = cur.rowcount
             conn.commit()
@@ -98,7 +104,8 @@ class Pipeline:
     # Single File
     # ----------------------------
 
-    def ingest(self, filepath: str, on_stage=None):
+    def ingest(self, filepath: str, on_stage=None, *, owner_id: str | None = None,
+               document_id: str | None = None, filename: str | None = None):
 
         def _notify(stage: str):
             if on_stage:
@@ -112,38 +119,68 @@ class Pipeline:
         # Skip entirely if unchanged; delete old chunks first if the file was updated.
         source = str(Path(filepath).resolve())
         new_hash = _file_sha256(filepath)
-        stored = _stored_hash(source)
+        stored = _stored_hash(source, owner_id, document_id)
 
         if stored == new_hash:
             logger.info("Skipping {} — content unchanged (hash match)", Path(filepath).name)
             return 0
 
         if stored is not None:
-            deleted = _delete_by_source(source)
+            deleted = _delete_by_source(source, owner_id, document_id)
             logger.info("File updated — deleted {} old chunks for {}", deleted, Path(filepath).name)
-            bm25_corpus.remove_by_source(source)
+            if owner_id or document_id:
+                bm25_corpus.remove_by_metadata(owner_id, document_id)
+            else:
+                bm25_corpus.remove_by_source(source)
 
         # ── ingestion ────────────────────────────────────────────────────────
-        logger.info(f"Loading {filepath}")
+        logger.info("ingestion parsing source={} owner_id={} document_id={}", source, owner_id, document_id)
         _notify("ingesting")
         documents = self.loader.load(filepath)
+        logger.info("ingestion cleaning source={} documents={}", source, len(documents))
         documents = self.cleaner.clean(documents)
 
         _notify("chunking")
         chunks = self.chunker.chunk(documents)
+        logger.info("ingestion chunking source={} chunks={}", source, len(chunks))
+        chunks = MetadataExtractor.enrich(
+            chunks, source, owner_id=owner_id, document_id=document_id,
+            filename=filename, content_hash=new_hash,
+        )
 
-        # Stamp the content hash into each chunk's metadata so we can retrieve it later
-        for chunk in chunks:
-            chunk.metadata["content_hash"] = new_hash
-
-        logger.info(f"Adding {len(chunks)} chunks")
+        logger.info("ingestion embedding source={} chunks={}", source, len(chunks))
         _notify("embedding")
         vector_store.add_documents(chunks)
+        logger.info("ingestion vector insertion source={} chunks={}", source, len(chunks))
         bm25_corpus.add(chunks)
         _ensure_columns()
         _sync_chunk_metadata()
 
         return len(chunks)
+
+    def delete_document_chunks(self, owner_id: str, document_id_or_source: str) -> int:
+        """Delete a document's vectors, BM25 entries, and Redis source mapping."""
+        is_source = document_id_or_source.startswith("/")
+        source = str(Path(document_id_or_source).resolve()) if is_source else None
+        try:
+            with psycopg.connect(_pg_url()) as conn:
+                with conn.cursor() as cur:
+                    if source:
+                        cur.execute("DELETE FROM langchain_pg_embedding WHERE cmetadata->>'owner_id' = %s AND cmetadata->>'source' = %s", (str(owner_id), source))
+                    else:
+                        cur.execute("DELETE FROM langchain_pg_embedding WHERE cmetadata->>'owner_id' = %s AND cmetadata->>'document_id' = %s", (str(owner_id), str(document_id_or_source)))
+                    deleted = cur.rowcount
+                conn.commit()
+        except Exception as exc:
+            logger.error("Failed document cleanup owner_id={} document={}: {}", owner_id, document_id_or_source, exc)
+            raise
+        if source:
+            bm25_corpus.remove_by_source(source)
+            remove_source(str(owner_id), source)
+        else:
+            bm25_corpus.remove_by_metadata(str(owner_id), str(document_id_or_source))
+        logger.info("Deleted {} chunks for owner_id={} document={}", deleted, owner_id, document_id_or_source)
+        return deleted
 
     # ----------------------------
     # Entire Folder

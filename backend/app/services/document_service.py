@@ -107,6 +107,18 @@ class DocumentService:
                 detail="Not your document",
             )
 
+        # Remove retrieval data before deleting SQL metadata. Failure is surfaced:
+        # silently retaining private vectors would violate the delete contract.
+        try:
+            async with httpx.AsyncClient(timeout=60) as client:
+                response = await client.delete(
+                    f"{settings.AI_SERVICE_URL}/documents/{document_id}",
+                    params={"owner_id": str(doc.owner_id)},
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not remove document retrieval data") from exc
+
         path = getattr(doc, "file_path", None)
         if path and isinstance(path, (str, bytes)) and os.path.exists(path):
             os.remove(path)

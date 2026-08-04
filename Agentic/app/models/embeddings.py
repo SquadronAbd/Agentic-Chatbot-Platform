@@ -6,7 +6,8 @@ try:
     _underlying = HuggingFaceEmbeddings(
         model_name=settings.EMBEDDING_MODEL,
         model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True, "batch_size": 128},
+        # Keep CPU memory bounded in the service container during ingestion.
+        encode_kwargs={"normalize_embeddings": True, "batch_size": 32},
         query_instruction="Represent this sentence for searching relevant passages: ",
     )
 except ImportError:
@@ -15,7 +16,7 @@ except ImportError:
     _underlying = HuggingFaceEmbeddings(
         model_name=settings.EMBEDDING_MODEL,
         model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True, "batch_size": 128},
+        encode_kwargs={"normalize_embeddings": True, "batch_size": 32},
     )
 
 # Wrap with disk-backed cache so identical text is never re-encoded.

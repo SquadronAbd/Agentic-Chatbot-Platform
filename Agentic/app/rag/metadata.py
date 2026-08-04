@@ -8,8 +8,12 @@ class MetadataExtractor:
     """
 
     @staticmethod
-    def enrich(documents: list[Document], file_path: str):
-        path = Path(file_path)
+    def enrich(
+        documents: list[Document], file_path: str, *, owner_id: str | None = None,
+        document_id: str | None = None, filename: str | None = None,
+        content_hash: str | None = None,
+    ) -> list[Document]:
+        path = Path(file_path).resolve()
 
         enriched = []
 
@@ -17,9 +21,16 @@ class MetadataExtractor:
 
             metadata = {
                 **doc.metadata,
-                "source": path.name,
+                "source": str(path),
                 "extension": path.suffix,
+                "filename": filename or path.name,
             }
+            if owner_id:
+                metadata["owner_id"] = str(owner_id)
+            if document_id:
+                metadata["document_id"] = str(document_id)
+            if content_hash:
+                metadata["content_hash"] = content_hash
 
             enriched.append(
                 Document(

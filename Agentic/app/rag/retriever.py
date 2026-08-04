@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 import time
-from functools import lru_cache
 
 import psycopg
 from langchain_core.documents import Document
@@ -106,7 +105,7 @@ def _pg_url() -> str:
     return settings.DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
 
 
-def _expand_by_page(reranked: list[Document]) -> tuple[list[Document], bool]:
+def _expand_by_page(reranked: list[Document], owner_id: str | None = None) -> tuple[list[Document], bool]:
     """
     For each reranked chunk that has a page_number, fetch all other chunks
     from the same source file and page from pgvector. This gives the LLM
@@ -138,8 +137,9 @@ def _expand_by_page(reranked: list[Document]) -> tuple[list[Document], bool]:
                         FROM langchain_pg_embedding
                         WHERE page_number = %s
                           AND cmetadata->>'source' = %s
+                          AND (%s IS NULL OR cmetadata->>'owner_id' = %s)
                         ORDER BY chunk_index
-                    """, (page_number, source))
+                    """, (page_number, source, owner_id, owner_id))
                     for row in cur.fetchall():
                         text, meta = row[0], row[1]
                         if text not in seen:
@@ -198,21 +198,19 @@ class HybridRetriever:
         self,
         query: str,
         source_filter: tuple[str, ...] | None = None,
+        owner_id: str | None = None,
     ) -> list[Document]:
-        return self._retrieve_cached(query, source_filter)
+        return self._retrieve(query, source_filter, owner_id)
 
-    @lru_cache(maxsize=256)
-    def _retrieve_cached(
-        self,
-        query: str,
-        source_filter: tuple[str, ...] | None = None,
-    ) -> list[Document]:
-        return self._retrieve(query, source_filter)
+    def clear_cache(self) -> None:
+        """Compatibility hook; retrieval deliberately has no result cache."""
+        return None
 
     def _retrieve(
         self,
         query: str,
         source_filter: tuple[str, ...] | None = None,
+        owner_id: str | None = None,
     ) -> list[Document]:
         pipeline_warnings: list[str] = []
 
@@ -227,15 +225,22 @@ class HybridRetriever:
             abstract_query = transformer.transform(query)
             use_abstract = abstract_query.lower().strip() != query.lower().strip()
 
-        # Build pgvector metadata filter when source paths are specified.
+        # Every user-scoped request must include owner_id. Source paths further
+        # narrow results, but are not relied on for isolation (Redis may be down).
         pg_filter: dict | None = None
+        if owner_id:
+            pg_filter = {"owner_id": str(owner_id)}
         if source_filter:
-            pg_filter = (
-                {"source": source_filter[0]}
+            source_value = (
+                source_filter[0]
                 if len(source_filter) == 1
-                else {"source": {"$in": list(source_filter)}}
+                else {"$in": list(source_filter)}
             )
+            # Flat metadata predicates are an AND in both supported PGVector
+            # implementations, unlike provider-specific "$and" syntax.
+            pg_filter = {**(pg_filter or {}), "source": source_value}
         bm25_src_filter = set(source_filter) if source_filter else None
+        logger.info("Retrieval query owner_id={} source_filter={} pg_filter={}", owner_id, len(source_filter or ()), pg_filter)
 
         # --- semantic search ---
         t0 = time.perf_counter()
@@ -263,10 +268,10 @@ class HybridRetriever:
 
         # --- BM25 search ---
         t0 = time.perf_counter()
-        original_bm25 = bm25_corpus.search(query, k=self.bm25_k, source_filter=bm25_src_filter)
+        original_bm25 = bm25_corpus.search(query, k=self.bm25_k, source_filter=bm25_src_filter, owner_id=owner_id)
         abstract_bm25: list[tuple[Document, float]] = []
         if use_abstract:
-            abstract_bm25 = bm25_corpus.search(abstract_query, k=self.bm25_k // 2, source_filter=bm25_src_filter)
+            abstract_bm25 = bm25_corpus.search(abstract_query, k=self.bm25_k // 2, source_filter=bm25_src_filter, owner_id=owner_id)
         bm25_results = _dedup_bm25(original_bm25 + abstract_bm25)
         t_bm25 = time.perf_counter() - t0
 
@@ -292,7 +297,7 @@ class HybridRetriever:
 
         # --- page-based context expansion ---
         t0 = time.perf_counter()
-        final_docs, page_expansion_fired = _expand_by_page(reranked)
+        final_docs, page_expansion_fired = _expand_by_page(reranked, owner_id)
         t_page_expand = time.perf_counter() - t0
 
         # --- log retrieval ----
@@ -320,6 +325,7 @@ class HybridRetriever:
             count_reranked=len(reranked),
             warnings=pipeline_warnings,
         )
+        logger.debug("Retrieval completed owner_id={} results={} top_sources={}", owner_id, len(final_docs), [d.metadata.get("source") for d in final_docs[:3]])
 
         return final_docs
 

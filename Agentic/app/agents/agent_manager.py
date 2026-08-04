@@ -36,6 +36,7 @@ class AgentManager:
         intent: Optional[str] = None,
         use_reflection: bool = True,
         source_filter: Optional[tuple] = None,
+        owner_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         if intent is None:
             intent = (await self._classifier.classify(question)).value
@@ -44,13 +45,15 @@ class AgentManager:
         sources: list = []
 
         if intent == "planner":
-            result = await self.planner.plan_and_execute(question, memory)
+            result = await self.planner.plan_and_execute(
+                question, memory, source_filter=source_filter, owner_id=owner_id
+            )
             draft_answer = result["answer"]
             documents = result.get("documents", [])
             sources = result.get("sources", [])
 
         elif intent == "document":
-            result = await self.document.answer(question=question, memory=memory, source_filter=source_filter)
+            result = await self.document.answer(question=question, memory=memory, source_filter=source_filter, owner_id=owner_id)
             draft_answer = result["answer"]
             documents = result.get("documents", [])
             sources = result.get("sources", [])

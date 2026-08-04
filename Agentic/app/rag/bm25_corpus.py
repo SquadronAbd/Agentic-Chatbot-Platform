@@ -36,19 +36,25 @@ class BM25Corpus:
         query: str,
         k: int = 20,
         source_filter: set[str] | None = None,
+        owner_id: str | None = None,
     ) -> list[tuple[Document, float]]:
         if not self._bm25 or not self._documents:
             return []
         tokenized = query.lower().split()
         scores = self._bm25.get_scores(tokenized)
         # Oversample when filtering so we still get k results after the source check.
-        oversample = k * 5 if source_filter else k
+        oversample = k * 5 if (source_filter or owner_id) else k
         top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:oversample]
         results = [(self._documents[i], float(scores[i])) for i in top_indices]
         if source_filter:
             results = [
                 (doc, score) for doc, score in results
                 if doc.metadata.get("source") in source_filter
+            ]
+        if owner_id:
+            results = [
+                (doc, score) for doc, score in results
+                if str(doc.metadata.get("owner_id", "")) == str(owner_id)
             ]
         return results[:k]
 
@@ -95,6 +101,19 @@ class BM25Corpus:
         """Remove all chunks whose metadata['source'] matches source and rebuild index."""
         before = len(self._documents)
         self._documents = [d for d in self._documents if d.metadata.get("source") != source]
+        removed = before - len(self._documents)
+        if removed:
+            self._rebuild()
+        return removed
+
+    def remove_by_metadata(self, owner_id: str | None = None, document_id: str | None = None) -> int:
+        """Remove chunks matching a document identity and rebuild the index."""
+        before = len(self._documents)
+        self._documents = [
+            doc for doc in self._documents
+            if not ((not owner_id or str(doc.metadata.get("owner_id")) == str(owner_id))
+                    and (not document_id or str(doc.metadata.get("document_id")) == str(document_id)))
+        ]
         removed = before - len(self._documents)
         if removed:
             self._rebuild()
