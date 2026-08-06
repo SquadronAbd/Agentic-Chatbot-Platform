@@ -92,6 +92,76 @@ def _sync_chunk_metadata() -> None:
         conn.commit()
 
 
+def _backend_pg_url() -> str | None:
+    """Return the chatbot_db URL, or None if not configured."""
+    url = settings.BACKEND_DB_URL
+    if not url:
+        return None
+    return url.replace("postgresql+asyncpg://", "postgresql://").replace("postgresql+psycopg://", "postgresql://")
+
+
+def _write_chunks_to_backend_db(document_id: str, chunks: list) -> None:
+    """
+    Mirror ingested chunk metadata into chatbot_db.document_chunks so the
+    document-health pipeline can verify consistency.
+
+    Fetches embedding UUIDs from langchain_pg_embedding (financial_rag), then
+    upserts rows into document_chunks (chatbot_db).  Silently skips if
+    BACKEND_DB_URL is unset or either DB is unreachable.
+    """
+    backend_url = _backend_pg_url()
+    if not backend_url or not document_id:
+        return
+
+    # --- fetch embedding UUIDs from the vector store DB ---
+    embedding_map: dict[int, str] = {}  # chunk_index -> embedding UUID
+    try:
+        with psycopg.connect(_pg_url()) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT uuid::text, (cmetadata->>'chunk_index')::int "
+                    "FROM langchain_pg_embedding "
+                    "WHERE cmetadata->>'document_id' = %s",
+                    (document_id,),
+                )
+                for emb_uuid, chunk_idx in cur.fetchall():
+                    if chunk_idx is not None:
+                        embedding_map[chunk_idx] = emb_uuid
+    except Exception as exc:
+        logger.warning("Could not fetch embedding UUIDs for document {}: {}", document_id, exc)
+
+    # --- upsert into chatbot_db.document_chunks ---
+    try:
+        with psycopg.connect(backend_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM document_chunks WHERE document_id = %s",
+                    (document_id,),
+                )
+                for i, chunk in enumerate(chunks):
+                    chunk_idx = chunk.metadata.get("chunk_index", i)
+                    page_num = chunk.metadata.get("page_number")
+                    emb_id = embedding_map.get(int(chunk_idx)) if chunk_idx is not None else None
+                    cur.execute(
+                        """
+                        INSERT INTO document_chunks
+                            (id, document_id, content, chunk_index, page_number, embedding_id, needs_reindex)
+                        VALUES
+                            (gen_random_uuid(), %s, %s, %s, %s, %s, FALSE)
+                        """,
+                        (document_id, chunk.page_content, chunk_idx, page_num, emb_id),
+                    )
+            conn.commit()
+        logger.info(
+            "Synced {} chunk(s) to chatbot_db.document_chunks for document {}",
+            len(chunks), document_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Could not write chunks to backend DB for document {}: {}", document_id, exc
+        )
+
+
 class Pipeline:
 
     def __init__(self):
@@ -155,6 +225,9 @@ class Pipeline:
         bm25_corpus.add(chunks)
         _ensure_columns()
         _sync_chunk_metadata()
+
+        if document_id:
+            _write_chunks_to_backend_db(document_id, chunks)
 
         return len(chunks)
 

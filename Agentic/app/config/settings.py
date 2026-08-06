@@ -17,6 +17,11 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = "redis://localhost:6379/0"
 
+    # URL of the backend application DB (chatbot_db).
+    # Used to mirror chunk metadata into document_chunks after ingestion.
+    # Leave empty to skip backend-DB sync (safe for standalone Agentic use).
+    BACKEND_DB_URL: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",

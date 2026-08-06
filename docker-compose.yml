@@ -58,6 +58,7 @@ services:
       DATABASE_URL: postgresql+psycopg://postgres:password@pgvector:5432/financial_rag
       COLLECTION_NAME: documents
       REDIS_URL: redis://redis:6379/0
+      BACKEND_DB_URL: postgresql://postgres:password@pgvector:5432/chatbot_db
     ports:
       - "8001:8000"
     depends_on:

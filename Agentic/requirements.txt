@@ -1,37 +1,48 @@
-langchain
-langgraph
-langchain-community
-langchain-google-genai
-langchain-groq
-langchain-chroma
-langchain-postgres
-langchain-text-splitters
-psycopg[binary]
+# ── LangChain ecosystem (0.3.x series — pydantic-v2 native) ─────────────────
+# All langchain-* packages must stay on the same major.minor generation.
+langchain==0.3.15
+langgraph==0.2.60
+langchain-community==0.3.15
+langchain-google-genai==2.0.11
+langchain-groq==0.2.3
+langchain-postgres==0.0.12
+langchain-text-splitters==0.3.5
 
-fastapi
-uvicorn
-python-multipart
+# ── Web framework ────────────────────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.19
+httpx==0.27.2
 
-chromadb
+# ── Database ─────────────────────────────────────────────────────────────────
+psycopg[binary]==3.2.3
 
-python-dotenv
-pydantic
-pydantic-settings
+# ── Pydantic (v2 required by langchain 0.3.x and fastapi 0.115.x) ───────────
+pydantic==2.10.3
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
 
-pypdf
-python-docx
-unstructured
-markdown
+# ── Document parsing ─────────────────────────────────────────────────────────
+pypdf==4.3.1
+python-docx==1.1.2
+unstructured==0.16.11
+markdown==3.7
 
-sentence-transformers
-numpy
-pandas
+# ── ML / Embeddings ──────────────────────────────────────────────────────────
+sentence-transformers==3.3.1
+numpy==1.26.4
+pandas==2.2.3
 
-rank-bm25
-redis
+# ── Retrieval ────────────────────────────────────────────────────────────────
+rank-bm25==0.2.2
+redis==5.2.1
 
-deepeval
+# ── Evaluation ───────────────────────────────────────────────────────────────
+deepeval==1.5.5
 
-loguru
-rich
-pytest
+# ── Utilities ────────────────────────────────────────────────────────────────
+loguru==0.7.2
+rich==13.9.2
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+pytest==8.3.4
