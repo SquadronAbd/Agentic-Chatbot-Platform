@@ -2,6 +2,7 @@ from app.graph.state import GraphState
 from app.memory.session import session_manager
 from app.router.intent_classifier import IntentClassifier
 from app.agents.agent_manager import AgentManager
+from app.agents.reflection_agent import ReflectionAgent
 from app.tools.tool_manager import ToolManager
 
 
@@ -26,6 +27,7 @@ class GraphNodes:
         state["conversation_history"] = memory.get_history()
         state["summary"] = memory.get_summary()
         state.setdefault("metadata", {})
+        state.setdefault("retry_count", 0)
         return state
 
     async def classify_intent(self, state: GraphState) -> GraphState:
@@ -39,9 +41,10 @@ class GraphNodes:
         return state
 
     async def agent_node(self, state: GraphState) -> GraphState:
+        question = state.get("refined_query") or state.get("question", "")
         source_filter_list = state.get("source_filter") or []
         result = await self.agent_manager.ask(
-            question=state.get("question", ""),
+            question=question,
             memory=state.get("memory"),
             intent=state.get("intent", "general"),
             use_reflection=False,
@@ -58,10 +61,31 @@ class GraphNodes:
 
     async def reflection_node(self, state: GraphState) -> GraphState:
         draft = state.get("answer", "")
-        if draft:
+        if not draft:
+            return state
+
+        retry_count = state.get("retry_count", 0)
+        can_retry = retry_count < ReflectionAgent.MAX_RETRIES
+
+        if can_retry and state.get("intent") in ("document", "planner"):
+            result = await self.agent_manager.reflection.reflect_with_sufficiency(
+                question=state.get("question", ""),
+                answer=draft,
+                documents=state.get("retrieved_documents", []),
+            )
+            state["answer"] = result["answer"]
+
+            if not result["sufficient"] and result.get("refined_query"):
+                state["refined_query"] = result["refined_query"]
+                state["retry_count"] = retry_count + 1
+            else:
+                state["refined_query"] = None
+        else:
             state["answer"] = await self.agent_manager.reflection.reflect(
                 question=state.get("question", ""),
                 answer=draft,
                 documents=state.get("retrieved_documents", []),
             )
+            state["refined_query"] = None
+
         return state

@@ -2,8 +2,7 @@ from langgraph.graph import StateGraph, END
 
 from app.graph.state import GraphState
 from app.graph.nodes import GraphNodes
-from app.graph.router import route_intent
-from app.graph.edges import should_reflect
+from app.graph.edges import should_reflect, after_reflection
 
 
 nodes = GraphNodes()
@@ -29,6 +28,14 @@ workflow.add_conditional_edges(
     },
 )
 
-workflow.add_edge("reflection", END)
+# After reflection, either loop back to agent with a refined query or end.
+workflow.add_conditional_edges(
+    "reflection",
+    after_reflection,
+    {
+        "agent": "agent",
+        "end": END,
+    },
+)
 
 graph = workflow.compile()

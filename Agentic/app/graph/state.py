@@ -26,3 +26,7 @@ class GraphState(TypedDict, total=False):
     # Empty list means no restriction — search the full corpus.
     source_filter: List[str]
     owner_id: str
+
+    # Agentic loop control — allows the agent to re-retrieve with a refined query.
+    retry_count: int
+    refined_query: Optional[str]
