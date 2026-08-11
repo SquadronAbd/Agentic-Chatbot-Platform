@@ -132,3 +132,50 @@ IMPROVED_ANSWER: (the improved answer text — clean, direct, no meta-commentary
             "sufficient": sufficient,
             "refined_query": refined_query,
         }
+
+    async def reflect_on_eval_failure(
+        self,
+        metric_name: str,
+        score: float,
+        reason: str,
+        question: str,
+        answer: str,
+        retrieval_context: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Diagnose a deepeval metric failure and return a concrete, actionable fix.
+
+        Invoked by the eval suite (tests/evals/) after each metric that scores
+        below threshold, so failures surface root causes rather than raw scores.
+        """
+        context_block = "\n".join(
+            f"  - {c[:300]}" for c in (retrieval_context or [])
+        ) or "  (none)"
+
+        prompt = f"""
+You are now diagnosing a specific eval metric failure for a financial RAG chatbot.
+
+FAILED METRIC : {metric_name}
+SCORE         : {score:.3f}
+DEEPEVAL REASON:
+{reason}
+
+QUESTION ASKED:
+{question}
+
+CHATBOT ANSWER:
+{answer}
+
+RETRIEVED CONTEXT:
+{context_block}
+
+Respond with three short sections:
+
+ROOT CAUSE: (one sentence — retrieval gap, hallucination, role drift, context loss, etc.)
+APP FIX: (one concrete change to retrieval, chunking, prompt, memory, or reranker)
+GOLDEN FIX: (one change to the test scenario if the expected outcome was unrealistic)
+
+Be specific. No preamble. No markdown headers beyond the labels above.
+"""
+        response = await llm.ainvoke(prompt)
+        return self._extract_text(response)

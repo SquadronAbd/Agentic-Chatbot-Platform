@@ -30,9 +30,6 @@
     "zod": "^4.4.3",
     "zustand": "^4.5.4"
   },
-  "optionalDependencies": {
-    "@next/swc-linux-x64-musl": "14.2.35"
-  },
   "devDependencies": {
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",

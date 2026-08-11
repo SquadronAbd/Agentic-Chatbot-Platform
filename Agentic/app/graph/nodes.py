@@ -47,7 +47,6 @@ class GraphNodes:
             question=question,
             memory=state.get("memory"),
             intent=state.get("intent", "general"),
-            use_reflection=False,
             source_filter=tuple(source_filter_list) if source_filter_list else None,
             owner_id=state.get("owner_id"),
         )

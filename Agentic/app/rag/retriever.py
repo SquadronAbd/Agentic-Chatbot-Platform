@@ -188,7 +188,7 @@ class HybridRetriever:
         self,
         semantic_k: int = 20,
         bm25_k: int = 20,
-        final_k: int = 6,
+        final_k: int = 10,
     ) -> None:
         self.semantic_k = semantic_k
         self.bm25_k = bm25_k

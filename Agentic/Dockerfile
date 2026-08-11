@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 
-RUN pip install --upgrade pip
+RUN pip install pip==24.0
 
 # Install CPU-only torch first so sentence-transformers and deepeval
 # don't pull the 2GB CUDA build.

@@ -13,7 +13,7 @@ class CrossEncoderReranker:
 
     MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
-    def __init__(self, top_k: int = 6) -> None:
+    def __init__(self, top_k: int = 10) -> None:
         self.top_k = top_k
         self._model = None
         self._load()

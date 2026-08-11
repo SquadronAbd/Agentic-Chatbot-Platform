@@ -38,6 +38,8 @@ rank-bm25==0.2.2
 redis==5.2.1
 
 # ── Evaluation ───────────────────────────────────────────────────────────────
+# Production image uses 1.5.5 (compatible with existing pins).
+# Eval tests (test_multiturn_eval.py) use 4.1.7 APIs — run locally via requirements-eval.txt.
 deepeval==1.5.5
 
 # ── Utilities ────────────────────────────────────────────────────────────────

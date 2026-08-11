@@ -34,7 +34,6 @@ class AgentManager:
         question: str,
         memory: Optional[Any] = None,
         intent: Optional[str] = None,
-        use_reflection: bool = True,
         source_filter: Optional[tuple] = None,
         owner_id: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -62,17 +61,8 @@ class AgentManager:
             # Handles both "memory" and "general" intents
             draft_answer = await self.general.answer(question=question, memory=memory)
 
-        if use_reflection and draft_answer and documents:
-            final_answer = await self.reflection.reflect(
-                question=question,
-                answer=draft_answer,
-                documents=documents,
-            )
-        else:
-            final_answer = draft_answer
-
         return {
-            "answer": final_answer,
+            "answer": draft_answer,
             "documents": documents,
             "sources": sources,
             "intent": intent,
